@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bufio"
 	"io"
 	"strconv"
 	"time"
@@ -176,11 +177,10 @@ func (h *ObjectHandler) GetObject(c fiber.Ctx) error {
 			models.ErrorResponse(models.ErrCodeObjectNotFound, "Object not found: "+err.Error()),
 		)
 	}
-	defer body.Close()
 
 	// Set response headers
 	c.Set("Content-Type", objectInfo.ContentType)
-	c.Set("Content-Length", string(rune(objectInfo.Size)))
+	c.Set("Content-Length", strconv.FormatInt(objectInfo.Size, 10))
 	c.Set("ETag", objectInfo.ETag)
 	c.Set("Last-Modified", objectInfo.LastModified.Format(time.RFC1123))
 
@@ -189,8 +189,11 @@ func (h *ObjectHandler) GetObject(c fiber.Ctx) error {
 		c.Set("Content-Disposition", "attachment; filename=\""+key+"\"")
 	}
 
-	// Stream the object body to the client
-	return c.SendStream(body)
+	// Stream the object body to the client without buffering the entire file
+	return c.SendStreamWriter(func(w *bufio.Writer) {
+		defer body.Close()
+		io.Copy(w, body)
+	})
 }
 
 // DeleteObject deletes an object from a bucket

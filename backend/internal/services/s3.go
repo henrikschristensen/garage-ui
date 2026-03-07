@@ -317,13 +317,19 @@ func (s *S3Service) UploadObject(ctx context.Context, bucketName, key string, bo
 
 // GetObject retrieves an object from a bucket
 func (s *S3Service) GetObject(ctx context.Context, bucketName, key string) (io.ReadCloser, *models.ObjectInfo, error) {
+	// Get bucket-specific MinIO client
+	client, err := s.getMinioClient(ctx, bucketName)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get MinIO client for bucket %s: %w", bucketName, err)
+	}
+
 	var object *minio.Object
 
 	// Call MinIO GetObject API with retry logic
 	retryConfig := utils.DefaultRetryConfig()
-	err := utils.RetryWithBackoff(ctx, retryConfig, func() error {
+	err = utils.RetryWithBackoff(ctx, retryConfig, func() error {
 		var getErr error
-		object, getErr = s.client.GetObject(ctx, bucketName, key, minio.GetObjectOptions{})
+		object, getErr = client.GetObject(ctx, bucketName, key, minio.GetObjectOptions{})
 		return getErr
 	})
 	if err != nil {
@@ -351,10 +357,16 @@ func (s *S3Service) GetObject(ctx context.Context, bucketName, key string) (io.R
 
 // DeleteObject deletes an object from a bucket
 func (s *S3Service) DeleteObject(ctx context.Context, bucketName, key string) error {
+	// Get bucket-specific MinIO client
+	client, err := s.getMinioClient(ctx, bucketName)
+	if err != nil {
+		return fmt.Errorf("failed to get MinIO client for bucket %s: %w", bucketName, err)
+	}
+
 	// Call MinIO RemoveObject API with retry logic
 	retryConfig := utils.DefaultRetryConfig()
-	err := utils.RetryWithBackoff(ctx, retryConfig, func() error {
-		return s.client.RemoveObject(ctx, bucketName, key, minio.RemoveObjectOptions{})
+	err = utils.RetryWithBackoff(ctx, retryConfig, func() error {
+		return client.RemoveObject(ctx, bucketName, key, minio.RemoveObjectOptions{})
 	})
 	if err != nil {
 		return fmt.Errorf("failed to delete object %s from bucket %s: %w", key, bucketName, err)
