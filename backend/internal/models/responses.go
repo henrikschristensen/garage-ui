@@ -40,11 +40,13 @@ type HealthResponse struct {
 
 // BucketInfo represents information about a bucket
 type BucketInfo struct {
-	Name         string    `json:"name"`
-	CreationDate time.Time `json:"creationDate"`
-	ObjectCount  *int64    `json:"objectCount,omitempty"`
-	Size         *int64    `json:"size,omitempty"`
-	Region       string    `json:"region,omitempty"`
+	Name          string               `json:"name"`
+	CreationDate  time.Time            `json:"creationDate"`
+	ObjectCount   *int64               `json:"objectCount,omitempty"`
+	Size          *int64               `json:"size,omitempty"`
+	Region        string               `json:"region,omitempty"`
+	WebsiteAccess bool                 `json:"websiteAccess"`
+	WebsiteConfig *BucketWebsiteConfig `json:"websiteConfig,omitempty"`
 }
 
 // BucketListResponse represents a list of buckets

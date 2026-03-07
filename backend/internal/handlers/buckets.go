@@ -67,11 +67,13 @@ func (h *BucketHandler) ListBuckets(c fiber.Ctx) error {
 		}
 
 		bucketInfo := models.BucketInfo{
-			Name:         bucketName,
-			CreationDate: adminBucket.Created,
-			Region:       "", // Garage doesn't have regions
-			ObjectCount:  &detailedInfo.Objects,
-			Size:         &detailedInfo.Bytes,
+			Name:          bucketName,
+			CreationDate:  adminBucket.Created,
+			Region:        "",
+			ObjectCount:   &detailedInfo.Objects,
+			Size:          &detailedInfo.Bytes,
+			WebsiteAccess: detailedInfo.WebsiteAccess,
+			WebsiteConfig: detailedInfo.WebsiteConfig,
 		}
 
 		buckets = append(buckets, bucketInfo)
@@ -301,6 +303,80 @@ func (h *BucketHandler) GrantBucketPermission(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(
 			models.ErrorResponse(models.ErrCodeInternalError, "Failed to grant permissions: "+err.Error()),
+		)
+	}
+
+	return c.JSON(models.SuccessResponse(result))
+}
+
+// UpdateBucketWebsite updates the website access configuration for a bucket
+//
+//	@Summary		Update bucket website configuration
+//	@Description	Enables or disables static website hosting for a bucket
+//	@Tags			Buckets
+//	@Accept			json
+//	@Produce		json
+//	@Param			name	path		string												true	"Name of the bucket"
+//	@Param			request	body		models.UpdateBucketWebsiteRequest				true	"Website configuration"
+//	@Success		200		{object}	models.APIResponse{data=models.GarageBucketInfo}	"Website configuration updated"
+//	@Failure		400		{object}	models.APIResponse{error=models.APIError}			"Invalid request"
+//	@Failure		404		{object}	models.APIResponse{error=models.APIError}			"Bucket not found"
+//	@Failure		500		{object}	models.APIResponse{error=models.APIError}			"Failed to update bucket"
+//	@Router			/api/v1/buckets/{name}/website [put]
+func (h *BucketHandler) UpdateBucketWebsite(c fiber.Ctx) error {
+	ctx := c.Context()
+
+	bucketName := c.Params("name")
+	if bucketName == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(
+			models.ErrorResponse(models.ErrCodeBadRequest, "Bucket name is required"),
+		)
+	}
+
+	var req models.UpdateBucketWebsiteRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(
+			models.ErrorResponse(models.ErrCodeBadRequest, "Invalid request body: "+err.Error()),
+		)
+	}
+
+	if req.Enabled && req.IndexDocument == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(
+			models.ErrorResponse(models.ErrCodeBadRequest, "indexDocument is required when enabling website access"),
+		)
+	}
+
+	bucketInfo, err := h.adminService.GetBucketInfoByAlias(ctx, bucketName)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(
+			models.ErrorResponse(models.ErrCodeInternalError, "Failed to get bucket info: "+err.Error()),
+		)
+	}
+
+	if bucketInfo == nil {
+		return c.Status(fiber.StatusNotFound).JSON(
+			models.ErrorResponse(models.ErrCodeBucketNotFound, "Bucket does not exist"),
+		)
+	}
+
+	websiteAccess := &models.UpdateBucketWebsiteAccess{
+		Enabled: req.Enabled,
+	}
+	if req.Enabled {
+		websiteAccess.IndexDocument = &req.IndexDocument
+		if req.ErrorDocument != "" {
+			websiteAccess.ErrorDocument = &req.ErrorDocument
+		}
+	}
+
+	updateReq := models.UpdateBucketRequest{
+		WebsiteAccess: websiteAccess,
+	}
+
+	result, err := h.adminService.UpdateBucket(ctx, bucketInfo.ID, updateReq)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(
+			models.ErrorResponse(models.ErrCodeInternalError, "Failed to update bucket website: "+err.Error()),
 		)
 	}
 

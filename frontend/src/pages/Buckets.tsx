@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { Header } from '@/components/layout/header';
 import { useBuckets, useCreateBucket, useDeleteBucket, useGrantBucketPermission } from '@/hooks/useApi';
@@ -8,8 +9,10 @@ import { ObjectBrowserView } from '@/components/buckets/ObjectBrowserView';
 import { CreateBucketDialog } from '@/components/buckets/CreateBucketDialog';
 import { DeleteBucketDialog } from '@/components/buckets/DeleteBucketDialog';
 import { BucketSettingsDialog } from '@/components/buckets/BucketSettingsDialog';
+import { BucketWebsiteDialog } from '@/components/buckets/BucketWebsiteDialog';
 import type { Bucket } from '@/types';
 import { toast } from 'sonner';
+import { bucketsApi } from '@/lib/api';
 
 export function Buckets() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -21,6 +24,8 @@ export function Buckets() {
   const [selectedBucket, setSelectedBucket] = useState<Bucket | null>(null);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [settingsBucket, setSettingsBucket] = useState<Bucket | null>(null);
+  const [websiteDialogOpen, setWebsiteDialogOpen] = useState(false);
+  const [websiteBucket, setWebsiteBucket] = useState<Bucket | null>(null);
 
   // Object browser state - initialize from URL params
   const [viewingBucket, setViewingBucket] = useState<string | null>(searchParams.get('bucket'));
@@ -51,6 +56,7 @@ export function Buckets() {
   }, [searchParams]);
 
   // Custom hooks
+  const queryClient = useQueryClient();
   const { data: buckets = [], isLoading: bucketsLoading } = useBuckets();
   const createBucketMutation = useCreateBucket();
   const deleteBucketMutation = useDeleteBucket();
@@ -139,6 +145,25 @@ export function Buckets() {
     setSettingsDialogOpen(true);
   };
 
+  const handleOpenWebsiteSettings = (bucket: Bucket) => {
+    setWebsiteBucket(bucket);
+    setWebsiteDialogOpen(true);
+  };
+
+  const handleSaveWebsite = async (
+    bucketName: string,
+    payload: { enabled: boolean; indexDocument?: string; errorDocument?: string }
+  ): Promise<boolean> => {
+    try {
+      await bucketsApi.updateBucketWebsite(bucketName, payload);
+      queryClient.invalidateQueries({ queryKey: ['buckets'] });
+      toast.success('Website configuration updated');
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleRefreshObjects = async () => {
     if (isRefreshing) return;
     try {
@@ -224,6 +249,7 @@ export function Buckets() {
           onSearchChange={setSearchQuery}
           onViewBucket={handleViewBucket}
           onOpenSettings={handleOpenSettings}
+          onWebsiteSettings={handleOpenWebsiteSettings}
           onCreateBucket={() => setCreateDialogOpen(true)}
           onDeleteBucket={(bucket) => {
             setSelectedBucket(bucket);
@@ -251,6 +277,13 @@ export function Buckets() {
         onOpenChange={setSettingsDialogOpen}
         bucket={settingsBucket}
         onGrantPermission={grantPermission}
+      />
+
+      <BucketWebsiteDialog
+        open={websiteDialogOpen}
+        onOpenChange={setWebsiteDialogOpen}
+        bucket={websiteBucket}
+        onSave={handleSaveWebsite}
       />
     </div>
   );

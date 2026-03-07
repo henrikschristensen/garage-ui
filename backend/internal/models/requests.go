@@ -59,3 +59,10 @@ type UpdateUserRequest struct {
 	Status     *string `json:"status,omitempty"`     // "active" or "inactive"
 	Expiration *string `json:"expiration,omitempty"` // ISO 8601 date string
 }
+
+// UpdateBucketWebsiteRequest represents a request to update bucket website configuration
+type UpdateBucketWebsiteRequest struct {
+	Enabled       bool   `json:"enabled"`
+	IndexDocument string `json:"indexDocument,omitempty"`
+	ErrorDocument string `json:"errorDocument,omitempty"`
+}

@@ -5,6 +5,11 @@ export interface Bucket {
   objectCount?: number;
   size?: number;
   region?: string;
+  websiteAccess: boolean;
+  websiteConfig?: {
+    indexDocument: string;
+    errorDocument?: string;
+  };
 }
 
 export interface BucketDetails extends Bucket {
