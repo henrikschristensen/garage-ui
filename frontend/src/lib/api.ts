@@ -158,6 +158,14 @@ export const authApi = {
   },
 };
 
+// Health API
+export const healthApi = {
+  getVersion: async (): Promise<string> => {
+    const response = await api.get('/v1/health');
+    return response.data.data.version as string;
+  },
+};
+
 // Bucket API
 export const bucketsApi = {
   list: async (): Promise<Bucket[]> => {
