@@ -51,6 +51,7 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: VERSION=${{ steps.meta.outputs.version }}
           cache-from: type=gha,scope=build-${{ matrix.platform }}
           cache-to: type=gha,mode=max,scope=build-${{ matrix.platform }}
           outputs: type=image,name=${{ secrets.DOCKER_REGISTRY }},push-by-digest=true,name-canonical=true,push=true

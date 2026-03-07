@@ -54,7 +54,7 @@ import (
 //	@name						Authorization
 //	@description				Type "Bearer" followed by a space and JWT token.
 
-const version = "0.1.0"
+var version = "dev"
 
 func main() {
 	// Parse command-line flags

@@ -29,12 +29,14 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 COPY backend .
 
+ARG VERSION=dev
+
 RUN --mount=type=cache,target=/root/.cache/go-build \
     swag init
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -installsuffix cgo -o garage-ui .
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -installsuffix cgo -ldflags "-X main.version=${VERSION}" -o garage-ui .
 
 FROM alpine:3.23.3
 

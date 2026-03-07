@@ -3,6 +3,8 @@ import {cn} from '@/lib/utils';
 import {Database, Key, LayoutDashboard, LogOut, Server, User} from 'lucide-react';
 import {useAuthStore} from '@/store/auth-store';
 import {Button} from '@/components/ui/button';
+import { useQuery } from '@tanstack/react-query';
+import { healthApi, garageApi } from '@/lib/api';
 
 interface NavItem {
   title: string;
@@ -45,6 +47,24 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const handleLogout = () => {
     logout();
   };
+
+  const { data: uiVersion } = useQuery({
+    queryKey: ['ui-version'],
+    queryFn: healthApi.getVersion,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+
+  const { data: nodeInfo } = useQuery({
+    queryKey: ['garage-version'],
+    queryFn: () => garageApi.getNodeInfo('self'),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+
+  const garageVersion = nodeInfo
+    ? Object.values(nodeInfo.success)[0]?.garageVersion
+    : undefined;
 
   return (
     <div
@@ -105,6 +125,13 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <LogOut className="mr-2 h-4 w-4" />
             Logout
           </Button>
+        </div>
+      )}
+      {(uiVersion || garageVersion) && (
+        <div className="px-4 pb-3 text-xs text-muted-foreground text-center">
+          {uiVersion && `UI ${uiVersion}`}
+          {uiVersion && garageVersion && ' | '}
+          {garageVersion && `Garage ${garageVersion}`}
         </div>
       )}
     </div>
