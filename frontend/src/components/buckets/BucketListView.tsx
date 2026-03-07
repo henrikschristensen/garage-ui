@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { FolderIcon, Loader2, MoreVertical, Plus, Search, Settings, Trash2 } from 'lucide-react';
+import { FolderIcon, Globe, Loader2, MoreVertical, Plus, Search, Settings, Trash2 } from 'lucide-react';
 import { formatBytes } from '@/lib/file-utils';
 import { formatDate } from '@/lib/utils';
 import type { Bucket } from '@/types';
@@ -23,6 +23,7 @@ interface BucketListViewProps {
   onOpenSettings: (bucket: Bucket) => void;
   onCreateBucket: () => void;
   onDeleteBucket: (bucket: Bucket) => void;
+  onWebsiteSettings: (bucket: Bucket) => void;
 }
 
 export function BucketListView({
@@ -34,6 +35,7 @@ export function BucketListView({
   onOpenSettings,
   onCreateBucket,
   onDeleteBucket,
+  onWebsiteSettings,
 }: BucketListViewProps) {
   const filteredBuckets = buckets.filter((bucket) =>
     bucket.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -94,7 +96,15 @@ export function BucketListView({
                   className="cursor-pointer hover:bg-muted/50"
                   onClick={() => onViewBucket(bucket.name)}
                 >
-                  <TableCell className="font-medium truncate max-w-[200px]">{bucket.name}</TableCell>
+                  <TableCell className="font-medium max-w-[200px]">
+                    <span className="truncate">{bucket.name}</span>
+                    {bucket.websiteAccess && (
+                      <Badge variant="outline" className="text-xs ml-2">
+                        <Globe className="h-3 w-3 mr-1" />
+                        Website
+                      </Badge>
+                    )}
+                  </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     <Badge variant="secondary">{bucket.region || 'default'}</Badge>
                   </TableCell>
@@ -122,6 +132,13 @@ export function BucketListView({
                         }}>
                           <Settings className="h-4 w-4" />
                           Settings
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => {
+                          e.stopPropagation();
+                          onWebsiteSettings(bucket);
+                        }}>
+                          <Globe className="h-4 w-4" />
+                          Website Settings
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem

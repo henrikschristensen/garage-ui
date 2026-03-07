@@ -2,6 +2,7 @@ import axios from 'axios';
 import {toast} from 'sonner';
 import type {
   AccessKey,
+  ApiResponse,
   Bucket,
   BucketDetails,
   ClusterHealth,
@@ -191,6 +192,17 @@ export const bucketsApi = {
 
   updateSettings: async (name: string, settings: Partial<BucketDetails>): Promise<void> => {
     await api.patch(`/v1/buckets/${name}/settings`, settings);
+  },
+
+  updateBucketWebsite: async (
+    name: string,
+    payload: { enabled: boolean; indexDocument?: string; errorDocument?: string }
+  ) => {
+    const response = await api.put<ApiResponse<any>>(
+      `/v1/buckets/${encodeURIComponent(name)}/website`,
+      payload
+    );
+    return response.data.data;
   },
 };
 
