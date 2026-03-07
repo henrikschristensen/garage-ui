@@ -301,56 +301,60 @@ export function ObjectsTable({
               </TableCell>
               <TableCell>{obj.isFolder ? null : formatBytes(obj.size)}</TableCell>
               <TableCell>
-                {obj.lastModified ?
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="decoration-dashed decoration-1 underline underline-offset-6 cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
-                        {new Date(obj.lastModified).toLocaleDateString('en-GB', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        })} {new Date(obj.lastModified).toLocaleTimeString('en-GB', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
-                          hour12: false,
-                        })} CET
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <div className="space-y-1 min-w-max">
-                        <div className="flex gap-3 items-center">
-                          <span className="text-sm text-gray-400 w-20 text-right">UTC</span>
-                          <span className="text-sm text-white">
-                            {new Date(obj.lastModified).toLocaleString('en-GB', {
+                {obj.lastModified ? (() => {
+                  const d = new Date(obj.lastModified);
+                  return (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="decoration-dashed decoration-1 underline underline-offset-6 cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
+                            {d.toLocaleDateString('en-GB', {
                               day: '2-digit',
                               month: 'short',
                               year: 'numeric',
+                            })} {d.toLocaleTimeString('en-GB', {
                               hour: '2-digit',
                               minute: '2-digit',
                               second: '2-digit',
                               hour12: false,
-                              timeZone: 'UTC',
-                            })} UTC
-                          </span>
-                        </div>
-                        <div className="flex gap-3 items-center">
-                          <span className="text-sm text-gray-400 w-20 text-right">Relative</span>
-                          <span className="text-sm text-white">
-                            {formatRelativeTime(new Date(obj.lastModified))}
-                          </span>
-                        </div>
-                        <div className="flex gap-3 items-center">
-                          <span className="text-sm text-gray-400 w-20 text-right">Timestamp</span>
-                          <span className="text-sm text-white font-mono">
-                            {new Date(obj.lastModified).toISOString()}
-                          </span>
-                        </div>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>: null}
+                            })} CET
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <div className="space-y-1 min-w-max">
+                            <div className="flex gap-3 items-center">
+                              <span className="text-sm text-gray-400 w-20 text-right">UTC</span>
+                              <span className="text-sm text-white">
+                                {d.toLocaleString('en-GB', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit',
+                                  hour12: false,
+                                  timeZone: 'UTC',
+                                })} UTC
+                              </span>
+                            </div>
+                            <div className="flex gap-3 items-center">
+                              <span className="text-sm text-gray-400 w-20 text-right">Relative</span>
+                              <span className="text-sm text-white">
+                                {formatRelativeTime(d)}
+                              </span>
+                            </div>
+                            <div className="flex gap-3 items-center">
+                              <span className="text-sm text-gray-400 w-20 text-right">Timestamp</span>
+                              <span className="text-sm text-white font-mono">
+                                {d.toISOString()}
+                              </span>
+                            </div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  );
+                })() : null}
               </TableCell>
               <TableCell>
                 {!obj.isFolder && (

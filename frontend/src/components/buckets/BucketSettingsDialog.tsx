@@ -10,8 +10,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { accessApi } from '@/lib/api';
-import type { AccessKey, Bucket } from '@/types';
+import { useAccessKeys } from '@/hooks/useApi';
+import type { Bucket } from '@/types';
 import { toast } from 'sonner';
 
 interface BucketSettingsDialogProps {
@@ -22,7 +22,7 @@ interface BucketSettingsDialogProps {
 }
 
 export function BucketSettingsDialog({ open, onOpenChange, bucket, onGrantPermission }: BucketSettingsDialogProps) {
-  const [availableKeys, setAvailableKeys] = useState<AccessKey[]>([]);
+  const { data: availableKeys = [] } = useAccessKeys();
   const [selectedAccessKey, setSelectedAccessKey] = useState<string>('');
   const [permissionRead, setPermissionRead] = useState(false);
   const [permissionWrite, setPermissionWrite] = useState(false);
@@ -30,19 +30,9 @@ export function BucketSettingsDialog({ open, onOpenChange, bucket, onGrantPermis
 
   useEffect(() => {
     if (open && bucket) {
-      loadAccessKeys();
       resetForm();
     }
   }, [open, bucket]);
-
-  const loadAccessKeys = async () => {
-    try {
-      const keys = await accessApi.listKeys();
-      setAvailableKeys(keys);
-    } catch (error) {
-      console.error('Failed to load access keys:', error);
-    }
-  };
 
   const resetForm = () => {
     setSelectedAccessKey('');
