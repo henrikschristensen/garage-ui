@@ -242,6 +242,30 @@ func SetupRoutes(
 					})
 				}
 
+				// Enforce admin role if configured. Roles are often absent from the
+				// ID token (e.g. Keycloak only emits resource_access in access tokens
+				// unless the client scope is explicitly configured), so fall back to
+				// the userinfo endpoint before denying access.
+				if cfg.Auth.OIDC.AdminRole != "" {
+					if !authService.IsAdmin(userInfo) {
+						if uiFromUserinfo, uiErr := authService.GetUserInfo(ctx, token); uiErr == nil {
+							if len(uiFromUserinfo.Roles) > 0 {
+								userInfo.Roles = uiFromUserinfo.Roles
+							}
+						}
+						if !authService.IsAdmin(userInfo) {
+							logger.Warn().
+								Str("username", userInfo.Username).
+								Str("required_role", cfg.Auth.OIDC.AdminRole).
+								Strs("roles", userInfo.Roles).
+								Msg("OIDC login denied: user does not have required admin role")
+							return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+								"error": "User does not have the required admin role",
+							})
+						}
+					}
+				}
+
 				// Generate JWT session token
 				sessionToken, err := authService.GenerateSessionToken(userInfo)
 				if err != nil {
