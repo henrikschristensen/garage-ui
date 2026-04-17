@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
 import {Badge} from '@/components/ui/badge';
 import {Button} from '@/components/ui/button';
@@ -64,7 +64,6 @@ export function ObjectsTable({
   const navigate = useNavigate();
   const [sortColumn, setSortColumn] = useState<SortColumn>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [filteredObjects, setFilteredObjects] = useState<S3Object[]>([]);
   // Store tokens for each page: [undefined (page 1), token1 (page 2), token2 (page 3), ...]
   const [pageTokens, setPageTokens] = useState<(string | undefined)[]>([undefined]);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
@@ -86,14 +85,13 @@ export function ObjectsTable({
     }
   }, [initialized, initialPageToken, initialItemsPerPage, itemsPerPage, nextContinuationToken, onPageChange, onItemsPerPageChange]);
 
-  const sortObjects = (objList: S3Object[]): S3Object[] => {
-    const sorted = [...objList].sort((a, b) => {
-      // Always put folders before files
+  const filteredObjects = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    const filtered = objects.filter((obj) => obj.key.toLowerCase().includes(query));
+    return [...filtered].sort((a, b) => {
       const aIsFolder = a.isFolder ? 1 : 0;
       const bIsFolder = b.isFolder ? 1 : 0;
-      if (aIsFolder !== bIsFolder) {
-        return bIsFolder - aIsFolder;
-      }
+      if (aIsFolder !== bIsFolder) return bIsFolder - aIsFolder;
 
       let compareValue = 0;
       switch (sortColumn) {
@@ -116,20 +114,7 @@ export function ObjectsTable({
 
       return sortDirection === 'asc' ? compareValue : -compareValue;
     });
-
-    return sorted;
-  };
-
-  // Effect 1: Apply client-side filtering and sorting (NO pagination reset)
-  useEffect(() => {
-    const filtered = objects.filter((obj) =>
-      obj.key.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    const sorted = sortObjects(filtered);
-    setFilteredObjects(sorted);
-
-    // Do NOT reset pagination - search/sort are client-side operations
-  }, [searchQuery, objects, sortColumn, sortDirection]);
+  }, [objects, searchQuery, sortColumn, sortDirection, currentPath]);
 
   // Effect 2: Reset pagination ONLY on path navigation
   useEffect(() => {
@@ -192,6 +177,7 @@ export function ObjectsTable({
   return (
     <>
       <div className="overflow-x-auto">
+        <TooltipProvider>
         <Table>
           <TableHeader>
           <TableRow>
@@ -304,55 +290,53 @@ export function ObjectsTable({
                 {obj.lastModified ? (() => {
                   const d = new Date(obj.lastModified);
                   return (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="decoration-dashed decoration-1 underline underline-offset-6 cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
-                            {d.toLocaleDateString('en-GB', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            })} {d.toLocaleTimeString('en-GB', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              second: '2-digit',
-                              hour12: false,
-                            })} CET
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="decoration-dashed decoration-1 underline underline-offset-6 cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
+                          {d.toLocaleDateString('en-GB', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })} {d.toLocaleTimeString('en-GB', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false,
+                          })} CET
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <div className="space-y-1 min-w-max">
+                          <div className="flex gap-3 items-center">
+                            <span className="text-sm text-gray-400 w-20 text-right">UTC</span>
+                            <span className="text-sm text-white">
+                              {d.toLocaleString('en-GB', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                                hour12: false,
+                                timeZone: 'UTC',
+                              })} UTC
+                            </span>
                           </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <div className="space-y-1 min-w-max">
-                            <div className="flex gap-3 items-center">
-                              <span className="text-sm text-gray-400 w-20 text-right">UTC</span>
-                              <span className="text-sm text-white">
-                                {d.toLocaleString('en-GB', {
-                                  day: '2-digit',
-                                  month: 'short',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  second: '2-digit',
-                                  hour12: false,
-                                  timeZone: 'UTC',
-                                })} UTC
-                              </span>
-                            </div>
-                            <div className="flex gap-3 items-center">
-                              <span className="text-sm text-gray-400 w-20 text-right">Relative</span>
-                              <span className="text-sm text-white">
-                                {formatRelativeTime(d)}
-                              </span>
-                            </div>
-                            <div className="flex gap-3 items-center">
-                              <span className="text-sm text-gray-400 w-20 text-right">Timestamp</span>
-                              <span className="text-sm text-white font-mono">
-                                {d.toISOString()}
-                              </span>
-                            </div>
+                          <div className="flex gap-3 items-center">
+                            <span className="text-sm text-gray-400 w-20 text-right">Relative</span>
+                            <span className="text-sm text-white">
+                              {formatRelativeTime(d)}
+                            </span>
                           </div>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                          <div className="flex gap-3 items-center">
+                            <span className="text-sm text-gray-400 w-20 text-right">Timestamp</span>
+                            <span className="text-sm text-white font-mono">
+                              {d.toISOString()}
+                            </span>
+                          </div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
                   );
                 })() : null}
               </TableCell>
@@ -390,6 +374,7 @@ export function ObjectsTable({
         )}
       </TableBody>
     </Table>
+        </TooltipProvider>
       </div>
 
     {/* Pagination Controls */}

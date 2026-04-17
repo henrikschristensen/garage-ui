@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import {Header} from '@/components/layout/header';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
@@ -31,7 +31,6 @@ import {toast} from 'sonner';
 
 export function AccessControl() {
   const [keys, setKeys] = useState<AccessKey[]>([]);
-  const [filteredKeys, setFilteredKeys] = useState<AccessKey[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -83,7 +82,6 @@ export function AccessControl() {
         setIsLoading(true);
         const data = await accessApi.listKeys();
         setKeys(data);
-        setFilteredKeys(data);
       } catch (error) {
         console.error('Failed to fetch keys:', error);
       } finally {
@@ -94,14 +92,15 @@ export function AccessControl() {
     fetchKeys();
   }, []);
 
-  useEffect(() => {
-    const filtered = keys.filter(
-      (key) =>
-        key.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        key.accessKeyId.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    setFilteredKeys(filtered);
-  }, [searchQuery, keys]);
+  const filteredKeys = useMemo(
+    () =>
+      keys.filter(
+        (key) =>
+          key.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          key.accessKeyId.toLowerCase().includes(searchQuery.toLowerCase())
+      ),
+    [keys, searchQuery]
+  );
 
   const handleCreateKey = async () => {
     if (!newKeyName) {
