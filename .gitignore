@@ -61,4 +61,4 @@ garage.toml
 
 backend/docs/
 config.yaml
-docs/
+docs/**/*.md
