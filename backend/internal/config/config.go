@@ -244,6 +244,13 @@ func (c *Config) Validate() error {
 		if len(c.Auth.OIDC.Scopes) == 0 {
 			return fmt.Errorf("oidc scopes are required when oidc is enabled")
 		}
+		// Every authenticated route on this service grants full admin
+		// access — there is no separate authorization layer. An empty
+		// admin_role would therefore promote every user in the IdP realm
+		// to cluster admin. Require operators to opt in explicitly.
+		if c.Auth.OIDC.AdminRole == "" {
+			return fmt.Errorf("oidc admin_role is required when oidc is enabled: leaving it empty would grant cluster-admin access to any authenticated IdP user")
+		}
 	}
 
 	return nil

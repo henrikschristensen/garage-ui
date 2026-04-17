@@ -7,13 +7,13 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-// ClusterHandler handles cluster management operations
+// ClusterHandler handles cluster-status HTTP requests.
 type ClusterHandler struct {
-	adminService *services.GarageAdminService
+	adminService services.AdminService
 }
 
-// NewClusterHandler creates a new cluster handler
-func NewClusterHandler(adminService *services.GarageAdminService) *ClusterHandler {
+// NewClusterHandler creates a new cluster handler.
+func NewClusterHandler(adminService services.AdminService) *ClusterHandler {
 	return &ClusterHandler{
 		adminService: adminService,
 	}

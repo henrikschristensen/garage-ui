@@ -3,7 +3,10 @@ package handlers
 import (
 	"bufio"
 	"io"
+	"net/url"
+	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"Noooste/garage-ui/internal/models"
@@ -12,13 +15,66 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-// ObjectHandler handles object-related operations
-type ObjectHandler struct {
-	s3Service *services.S3Service
+// unsafeInlineContentTypes are MIME types that a browser can execute as
+// JavaScript in the response's origin when rendered inline. Since the SPA is
+// served from the same origin as the API, any uploader could otherwise plant
+// stored XSS by uploading a file with one of these Content-Types.
+var unsafeInlineContentTypes = map[string]struct{}{
+	"text/html":             {},
+	"application/xhtml+xml": {},
+	"image/svg+xml":         {},
+	"application/xml":       {},
+	"text/xml":              {},
+	"application/javascript": {},
+	"text/javascript":       {},
 }
 
-// NewObjectHandler creates a new object handler
-func NewObjectHandler(s3Service *services.S3Service) *ObjectHandler {
+// safeContentType rewrites Content-Types that the browser would treat as
+// executable to application/octet-stream.
+func safeContentType(ct string) string {
+	base := strings.TrimSpace(strings.ToLower(ct))
+	if i := strings.IndexByte(base, ';'); i >= 0 {
+		base = strings.TrimSpace(base[:i])
+	}
+	if _, bad := unsafeInlineContentTypes[base]; bad {
+		return "application/octet-stream"
+	}
+	return ct
+}
+
+// contentDispositionHeader builds an RFC 6266 / RFC 5987 Content-Disposition
+// header value with the user-controlled object key safely encoded. Strips
+// path components and control characters before emitting the ASCII fallback,
+// then appends the percent-encoded UTF-8 filename*= for full fidelity.
+func contentDispositionHeader(disposition, key string) string {
+	name := path.Base(key)
+	if name == "." || name == "/" || name == "" {
+		name = "download"
+	}
+	// ASCII-safe fallback: drop anything that could break the quoted value.
+	var asciiFallback strings.Builder
+	for _, r := range name {
+		if r < 0x20 || r == 0x7f || r == '"' || r == '\\' || r > 0x7e {
+			asciiFallback.WriteByte('_')
+			continue
+		}
+		asciiFallback.WriteRune(r)
+	}
+	fallback := asciiFallback.String()
+	if fallback == "" {
+		fallback = "download"
+	}
+	encoded := url.PathEscape(name)
+	return disposition + "; filename=\"" + fallback + "\"; filename*=UTF-8''" + encoded
+}
+
+// ObjectHandler handles object-related HTTP requests.
+type ObjectHandler struct {
+	s3Service services.S3Storage
+}
+
+// NewObjectHandler creates a new object handler.
+func NewObjectHandler(s3Service services.S3Storage) *ObjectHandler {
 	return &ObjectHandler{
 		s3Service: s3Service,
 	}
@@ -178,16 +234,22 @@ func (h *ObjectHandler) GetObject(c fiber.Ctx) error {
 		)
 	}
 
-	// Set response headers
-	c.Set("Content-Type", objectInfo.ContentType)
+	// The uploader controls Content-Type. Rewrite executable MIME types to
+	// application/octet-stream and always disable sniffing so stored HTML/SVG
+	// cannot run as XSS in the SPA origin when fetched inline.
+	c.Set("Content-Type", safeContentType(objectInfo.ContentType))
+	c.Set("X-Content-Type-Options", "nosniff")
 	c.Set("Content-Length", strconv.FormatInt(objectInfo.Size, 10))
 	c.Set("ETag", objectInfo.ETag)
 	c.Set("Last-Modified", objectInfo.LastModified.Format(time.RFC1123))
 
-	// Check if client wants to download or view inline
+	// The object key is attacker-controlled — build the header via the safe
+	// RFC 6266 helper to avoid quote/semicolon injection into filename=.
+	disposition := "inline"
 	if c.Query("download") == "true" {
-		c.Set("Content-Disposition", "attachment; filename=\""+key+"\"")
+		disposition = "attachment"
 	}
+	c.Set("Content-Disposition", contentDispositionHeader(disposition, key))
 
 	// Stream the object body to the client without buffering the entire file
 	return c.SendStreamWriter(func(w *bufio.Writer) {

@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"strconv"
 	"strings"
 
 	"Noooste/garage-ui/internal/config"
@@ -20,10 +21,14 @@ func CORSMiddleware(cfg *config.CORSConfig) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		origin := c.Get("Origin")
 
-		// Check if origin is allowed
-		if origin != "" && isAllowedOrigin(origin, cfg.AllowedOrigins) {
+		// Check if origin is allowed. When credentials are allowed we refuse
+		// to treat "*" as a match: reflecting an arbitrary Origin alongside
+		// Access-Control-Allow-Credentials: true lets any site read responses
+		// cross-origin with the user's session cookie.
+		if origin != "" && isAllowedOrigin(origin, cfg.AllowedOrigins, cfg.AllowCredentials) {
 			// Set CORS headers
 			c.Set("Access-Control-Allow-Origin", origin)
+			c.Set("Vary", "Origin")
 
 			if cfg.AllowCredentials {
 				c.Set("Access-Control-Allow-Credentials", "true")
@@ -41,7 +46,7 @@ func CORSMiddleware(cfg *config.CORSConfig) fiber.Handler {
 
 			// Set max age for preflight cache
 			if cfg.MaxAge > 0 {
-				c.Set("Access-Control-Max-Age", string(rune(cfg.MaxAge)))
+				c.Set("Access-Control-Max-Age", strconv.Itoa(cfg.MaxAge))
 			}
 		}
 
@@ -54,10 +59,14 @@ func CORSMiddleware(cfg *config.CORSConfig) fiber.Handler {
 	}
 }
 
-// isAllowedOrigin checks if an origin is in the allowed list
-func isAllowedOrigin(origin string, allowedOrigins []string) bool {
+// isAllowedOrigin checks if an origin is in the allowed list.
+// When allowCredentials is true, "*" is NOT honored — exact match is required.
+func isAllowedOrigin(origin string, allowedOrigins []string, allowCredentials bool) bool {
 	for _, allowed := range allowedOrigins {
-		if allowed == "*" || allowed == origin {
+		if allowed == origin {
+			return true
+		}
+		if allowed == "*" && !allowCredentials {
 			return true
 		}
 	}

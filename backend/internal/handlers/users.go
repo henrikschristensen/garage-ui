@@ -9,13 +9,13 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-// UserHandler handles user/key management operations using Garage Admin API
+// UserHandler handles user and access key HTTP requests.
 type UserHandler struct {
-	adminService *services.GarageAdminService
+	adminService services.AdminService
 }
 
-// NewUserHandler creates a new user handler
-func NewUserHandler(adminService *services.GarageAdminService) *UserHandler {
+// NewUserHandler creates a new user handler.
+func NewUserHandler(adminService services.AdminService) *UserHandler {
 	return &UserHandler{
 		adminService: adminService,
 	}

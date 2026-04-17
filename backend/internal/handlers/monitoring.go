@@ -7,14 +7,14 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-// MonitoringHandler handles monitoring operations
+// MonitoringHandler handles metrics and dashboard HTTP requests.
 type MonitoringHandler struct {
-	adminService *services.GarageAdminService
-	s3Service    *services.S3Service
+	adminService services.AdminService
+	s3Service    services.S3Storage
 }
 
-// NewMonitoringHandler creates a new monitoring handler
-func NewMonitoringHandler(adminService *services.GarageAdminService, s3Service *services.S3Service) *MonitoringHandler {
+// NewMonitoringHandler creates a new monitoring handler.
+func NewMonitoringHandler(adminService services.AdminService, s3Service services.S3Storage) *MonitoringHandler {
 	return &MonitoringHandler{
 		adminService: adminService,
 		s3Service:    s3Service,
