@@ -68,3 +68,31 @@ func TestExtractRolesFromAccessToken_Malformed(t *testing.T) {
 		t.Fatalf("expected nil for empty token, got %v", roles)
 	}
 }
+
+// Regression for issue #16: admin-only deployments never set
+// OIDC.SessionMaxAge, leaving it at 0. Before the fix, that produced a JWT
+// whose exp == iat, so every request after /auth/login was rejected as
+// expired and the client saw UNAUTHORIZED.
+func TestGenerateSessionToken_ZeroSessionMaxAge_IsNotImmediatelyExpired(t *testing.T) {
+	jwtSvc, err := NewJWTService()
+	if err != nil {
+		t.Fatalf("NewJWTService: %v", err)
+	}
+
+	svc := &Service{
+		authConfig: &config.AuthConfig{
+			Admin: config.AdminAuthConfig{Enabled: true, Username: "admin", Password: "pw"},
+			// OIDC disabled; SessionMaxAge left at zero value.
+		},
+		jwtService: jwtSvc,
+	}
+
+	token, err := svc.GenerateSessionToken(&UserInfo{Username: "admin"})
+	if err != nil {
+		t.Fatalf("GenerateSessionToken: %v", err)
+	}
+
+	if _, err := svc.ValidateSessionToken(token); err != nil {
+		t.Fatalf("freshly issued admin session token failed validation: %v", err)
+	}
+}

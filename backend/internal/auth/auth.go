@@ -356,9 +356,18 @@ func (a *Service) ValidateAndConsumeState(token string) bool {
 	return a.jwtService.ValidateAndConsumeState(token)
 }
 
-// GenerateSessionToken generates a JWT session token for the user
+// GenerateSessionToken generates a JWT session token for the user.
+//
+// SessionMaxAge lives under the OIDC config block, but the JWT is shared with
+// admin-only deployments that never set it. Treat a non-positive value as
+// "not configured" and fall back to 24h so the token isn't issued already
+// expired (which would make every subsequent request fail with 401).
 func (a *Service) GenerateSessionToken(userInfo *UserInfo) (string, error) {
-	return a.jwtService.GenerateToken(userInfo, a.authConfig.OIDC.SessionMaxAge)
+	maxAge := a.authConfig.OIDC.SessionMaxAge
+	if maxAge <= 0 {
+		maxAge = 86400
+	}
+	return a.jwtService.GenerateToken(userInfo, maxAge)
 }
 
 // ValidateSessionToken validates a JWT session token and returns user info
