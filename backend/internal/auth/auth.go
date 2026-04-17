@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -225,6 +226,36 @@ func (a *Service) GetUserInfo(ctx context.Context, token *oauth2.Token) (*UserIn
 	}
 
 	return userInfo, nil
+}
+
+// ExtractRolesFromAccessToken parses the access token JWT payload and extracts
+// roles using the configured role_attribute_path. Keycloak emits resource_access
+// claims only in the access token by default, so this is required to support
+// the common Keycloak client-role setup without extra mapper configuration.
+//
+// The access token was obtained via a verified code exchange with the provider,
+// so parsing its claims without re-verifying the signature is safe here.
+func (a *Service) ExtractRolesFromAccessToken(accessToken string) []string {
+	if accessToken == "" || a.authConfig.OIDC.RoleAttributePath == "" {
+		return nil
+	}
+
+	parts := strings.Split(accessToken, ".")
+	if len(parts) < 2 {
+		return nil
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil
+	}
+
+	var claims map[string]interface{}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return nil
+	}
+
+	return extractRoles(claims, a.authConfig.OIDC.RoleAttributePath)
 }
 
 // IsAdmin checks if the user has admin role
