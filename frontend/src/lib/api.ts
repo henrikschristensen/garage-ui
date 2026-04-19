@@ -276,6 +276,10 @@ export const objectsApi = {
     };
   },
 
+  createDirectory: async (bucket: string, key: string): Promise<void> => {
+    await api.post(`/v1/buckets/${bucket}/directories`, { key });
+  },
+
   upload: async (bucket: string, key: string, file: File, onProgress?: (progress: number) => void): Promise<void> => {
     const formData = new FormData();
     formData.append('file', file);

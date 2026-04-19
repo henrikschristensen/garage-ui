@@ -25,6 +25,7 @@ var _ services.S3Storage = (*S3Mock)(nil)
 type S3Mock struct {
 	ListObjectsFn          func(ctx context.Context, bucketName, prefix string, maxKeys int, continuationToken string) (*models.ObjectListResponse, error)
 	UploadObjectFn         func(ctx context.Context, bucketName, key string, body io.Reader, contentType string) (*models.ObjectUploadResponse, error)
+	CreateDirectoryMarkerFn func(ctx context.Context, bucketName, key string) (*models.ObjectUploadResponse, error)
 	GetObjectFn            func(ctx context.Context, bucketName, key string) (io.ReadCloser, *models.ObjectInfo, error)
 	ObjectExistsFn         func(ctx context.Context, bucketName, key string) (bool, error)
 	DeleteObjectFn         func(ctx context.Context, bucketName, key string) error
@@ -60,6 +61,14 @@ func (m *S3Mock) UploadObject(ctx context.Context, bucketName, key string, body 
 		return nil, s3NotConfigured("UploadObject")
 	}
 	return m.UploadObjectFn(ctx, bucketName, key, body, contentType)
+}
+
+func (m *S3Mock) CreateDirectoryMarker(ctx context.Context, bucketName, key string) (*models.ObjectUploadResponse, error) {
+	m.record("CreateDirectoryMarker", bucketName, key)
+	if m.CreateDirectoryMarkerFn == nil {
+		return nil, s3NotConfigured("CreateDirectoryMarker")
+	}
+	return m.CreateDirectoryMarkerFn(ctx, bucketName, key)
 }
 
 func (m *S3Mock) GetObject(ctx context.Context, bucketName, key string) (io.ReadCloser, *models.ObjectInfo, error) {

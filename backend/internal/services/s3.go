@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -218,9 +219,28 @@ func (s *S3Service) ListObjects(ctx context.Context, bucketName, prefix string, 
 		return nil, fmt.Errorf("failed to list objects in bucket %s: %w", bucketName, err)
 	}
 
+	// Drop directory marker objects (zero-byte keys ending in "/"). Garage
+	// returns them in Contents, but the UI renders folders from Prefixes — a
+	// marker shown as both a folder and a file is confusing. Any marker not
+	// already covered by a CommonPrefix is promoted to Prefixes below.
+	contents := make([]minio.ObjectInfo, 0, len(result.Contents))
+	markerKeys := make([]string, 0)
+	for _, obj := range result.Contents {
+		if strings.HasSuffix(obj.Key, "/") && obj.Size == 0 {
+			// A marker whose key equals the current listing prefix is the
+			// folder itself — drop it entirely so it doesn't render as a
+			// nameless child of itself.
+			if obj.Key != prefix {
+				markerKeys = append(markerKeys, obj.Key)
+			}
+			continue
+		}
+		contents = append(contents, obj)
+	}
+
 	// Process objects from result.Contents
 	// Note: ListObjectsV2 doesn't return ContentType, so we need to fetch it separately
-	objects := make([]models.ObjectInfo, len(result.Contents))
+	objects := make([]models.ObjectInfo, len(contents))
 
 	// Use goroutines to fetch ContentType concurrently for better performance
 	type statResult struct {
@@ -231,7 +251,7 @@ func (s *S3Service) ListObjects(ctx context.Context, bucketName, prefix string, 
 
 	statChan := make(chan statResult, len(result.Contents))
 
-	for i, obj := range result.Contents {
+	for i, obj := range contents {
 		go func(idx int, objKey string) {
 			// Fetch object metadata to get ContentType
 			stat, err := client.StatObject(ctx, bucketName, objKey, minio.StatObjectOptions{})
@@ -254,7 +274,7 @@ func (s *S3Service) ListObjects(ctx context.Context, bucketName, prefix string, 
 	}
 
 	// Collect results from goroutines
-	for range result.Contents {
+	for range contents {
 		res := <-statChan
 		if res.err == nil {
 			objects[res.index].ContentType = res.contentType
@@ -264,9 +284,20 @@ func (s *S3Service) ListObjects(ctx context.Context, bucketName, prefix string, 
 	close(statChan)
 
 	// Process folders from result.CommonPrefixes
-	prefixList := make([]string, 0, len(result.CommonPrefixes))
+	prefixList := make([]string, 0, len(result.CommonPrefixes)+len(markerKeys))
+	seen := make(map[string]struct{}, len(result.CommonPrefixes))
 	for _, p := range result.CommonPrefixes {
 		prefixList = append(prefixList, p.Prefix)
+		seen[p.Prefix] = struct{}{}
+	}
+	// Promote filtered directory markers into Prefixes so empty folders still
+	// appear in the listing.
+	for _, k := range markerKeys {
+		if _, ok := seen[k]; ok {
+			continue
+		}
+		prefixList = append(prefixList, k)
+		seen[k] = struct{}{}
 	}
 
 	return &models.ObjectListResponse{
@@ -311,6 +342,39 @@ func (s *S3Service) UploadObject(ctx context.Context, bucketName, key string, bo
 		ETag:        info.ETag,
 		Size:        info.Size,
 		ContentType: contentType,
+	}, nil
+}
+
+// CreateDirectoryMarker creates a zero-byte object whose key ends with "/".
+// Garage rejects the streaming path (size=-1) with "Empty body" because the
+// MinIO client switches to multipart upload, which requires payload. Passing
+// size=0 forces a single PutObject request with Content-Length: 0, which
+// Garage accepts as a directory marker.
+func (s *S3Service) CreateDirectoryMarker(ctx context.Context, bucketName, key string) (*models.ObjectUploadResponse, error) {
+	client, err := s.getMinioClient(ctx, bucketName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get MinIO client for bucket %s: %w", bucketName, err)
+	}
+
+	opts := minio.PutObjectOptions{ContentType: "application/x-directory"}
+
+	var info minio.UploadInfo
+	retryConfig := utils.DefaultRetryConfig()
+	err = utils.RetryWithBackoff(ctx, retryConfig, func() error {
+		var uploadErr error
+		info, uploadErr = client.PutObject(ctx, bucketName, key, bytes.NewReader(nil), 0, opts)
+		return uploadErr
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create directory %s in bucket %s: %w", key, bucketName, err)
+	}
+
+	return &models.ObjectUploadResponse{
+		Bucket:      bucketName,
+		Key:         key,
+		ETag:        info.ETag,
+		Size:        info.Size,
+		ContentType: opts.ContentType,
 	}, nil
 }
 

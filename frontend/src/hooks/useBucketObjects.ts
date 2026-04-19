@@ -182,7 +182,7 @@ export function useBucketObjects(bucketName: string | null, currentPath: string 
 
     try {
       const dirKey = currentPath ? `${currentPath}${dirName}/` : `${dirName}/`;
-      await objectsApi.upload(bucketName, dirKey, new File([], '.keep'));
+      await objectsApi.createDirectory(bucketName, dirKey);
       toast.success(`Directory "${dirName}" created successfully`);
       await fetchObjects(currentContinuationToken, true);
       return true;

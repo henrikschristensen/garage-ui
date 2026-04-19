@@ -72,6 +72,9 @@ func SetupRoutes(
 		objects.Post("/delete-multiple", objectHandler.DeleteMultipleObjects) // Delete multiple objects
 	}
 
+	// Directory routes (zero-byte directory markers)
+	api.Post("/buckets/:bucket/directories", objectHandler.CreateDirectory)
+
 	// Fiber v3 does not auto-decode wildcard params; fall back to the raw
 	// value when QueryUnescape fails.
 	decodeObjectKey := func(c fiber.Ctx) string {

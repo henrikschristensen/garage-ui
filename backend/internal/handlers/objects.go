@@ -194,6 +194,58 @@ func (h *ObjectHandler) UploadObject(c fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(models.SuccessResponse(uploadResult))
 }
 
+// CreateDirectory creates an empty directory marker in a bucket.
+//
+//	@Summary		Create directory in bucket
+//	@Description	Creates a zero-byte object whose key ends with "/" so that S3 clients display it as an empty folder.
+//	@Tags			Objects
+//	@Accept			json
+//	@Produce		json
+//	@Param			bucket	path		string												true	"Name of the bucket"
+//	@Param			request	body		object{key=string}									true	"Directory key (must end with '/')"
+//	@Success		201		{object}	models.APIResponse{data=models.ObjectUploadResponse}	"Directory created"
+//	@Failure		400		{object}	models.APIResponse{error=models.APIError}			"Invalid request parameters"
+//	@Failure		500		{object}	models.APIResponse{error=models.APIError}			"Failed to create directory"
+//	@Router			/api/v1/buckets/{bucket}/directories [post]
+func (h *ObjectHandler) CreateDirectory(c fiber.Ctx) error {
+	ctx := c.Context()
+
+	bucketName := c.Params("bucket")
+	if bucketName == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(
+			models.ErrorResponse(models.ErrCodeBadRequest, "Bucket name is required"),
+		)
+	}
+
+	var req struct {
+		Key string `json:"key"`
+	}
+	if err := c.Bind().JSON(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(
+			models.ErrorResponse(models.ErrCodeBadRequest, "Invalid request body: "+err.Error()),
+		)
+	}
+
+	key := strings.TrimLeft(req.Key, "/")
+	if key == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(
+			models.ErrorResponse(models.ErrCodeBadRequest, "Directory key is required"),
+		)
+	}
+	if !strings.HasSuffix(key, "/") {
+		key += "/"
+	}
+
+	result, err := h.s3Service.CreateDirectoryMarker(ctx, bucketName, key)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(
+			models.ErrorResponse(models.ErrCodeUploadFailed, "Failed to create directory: "+err.Error()),
+		)
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(models.SuccessResponse(result))
+}
+
 // GetObject retrieves an object from a bucket
 //
 //	@Summary		Get object from bucket
