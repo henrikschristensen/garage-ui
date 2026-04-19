@@ -64,3 +64,6 @@ garage.toml
 backend/docs/
 config.yaml
 docs/**/*.md
+
+# Superpowers brainstorm / session scratch
+.superpowers/

@@ -1,17 +1,20 @@
 import {useEffect, useMemo, useState} from 'react';
-import {Header} from '@/components/layout/header';
+import {cn} from '@/lib/utils';
+import {PageHeader} from '@/components/ui/page-header';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {Badge} from '@/components/ui/badge';
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow,} from '@/components/ui/table';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { IconTile } from '@/components/ui/icon-tile';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,8 +29,81 @@ import {Select, SelectOption} from '@/components/ui/select';
 import {accessApi, bucketsApi} from '@/lib/api';
 import {formatDate} from '@/lib/utils';
 import type {AccessKey, Bucket, BucketPermission} from '@/types';
-import {Copy, Edit, Key, Loader2, MoreVertical, Plus, Search, ShieldCheck, ShieldX, Trash2,} from 'lucide-react';
+import {AlertTriangle, Calendar, Check, Copy, Database, Edit, Eye, EyeOff, Key, KeyRound, Loader2, MoreVertical, Plus, Search, ShieldCheck, ShieldX, Trash2,} from 'lucide-react';
 import {toast} from 'sonner';
+
+function CredentialField({
+  label,
+  value,
+  mono = true,
+  breakAll = false,
+  maskable = false,
+  loading = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  breakAll?: boolean;
+  maskable?: boolean;
+  loading?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [revealed, setRevealed] = useState(!maskable);
+  const copy = () => {
+    if (!value) return;
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    toast.success(`${label} copied`);
+    setTimeout(() => setCopied(false), 1600);
+  };
+  const display = loading ? '' : revealed || !maskable ? value : '•'.repeat(Math.min(40, value.length || 40));
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[12px] font-medium uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+        {label}
+      </label>
+      <div className="flex items-stretch gap-2">
+        <button
+          type="button"
+          onClick={copy}
+          disabled={loading || !value}
+          title="Click to copy"
+          className={cn(
+            'flex-1 min-w-0 rounded-md border border-[var(--border)] bg-[var(--surface-sunken)]',
+            'px-3 py-2 text-left text-[13.5px] transition-colors hover:bg-[var(--accent)]',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]',
+            'disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:bg-[var(--surface-sunken)]',
+            mono && 'font-mono',
+            breakAll ? 'break-all' : 'truncate',
+          )}
+        >
+          {loading ? (
+            <span className="inline-flex items-center gap-2 text-[var(--muted-foreground)]">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Loading…
+            </span>
+          ) : (
+            display
+          )}
+        </button>
+        {maskable && (
+          <Button
+            variant="secondary"
+            size="icon"
+            onClick={() => setRevealed((r) => !r)}
+            aria-label={revealed ? 'Hide' : 'Reveal'}
+            disabled={loading || !value}
+          >
+            {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </Button>
+        )}
+        <Button variant="secondary" size="icon" onClick={copy} aria-label={`Copy ${label}`} disabled={loading || !value}>
+          {copied ? <Check className="h-4 w-4 text-[var(--primary)]" /> : <Copy className="h-4 w-4" />}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export function AccessControl() {
   const [keys, setKeys] = useState<AccessKey[]>([]);
@@ -363,9 +439,7 @@ export function AccessControl() {
 
   return (
     <div>
-      <Header
-        title="Access Control"
-      />
+      <PageHeader title="Access control" subtitle="Access keys and per-bucket permissions" />
       <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
         <Tabs defaultValue="keys">
           <TabsContent value="keys" className="space-y-4 sm:space-y-6 mt-4 sm:mt-6">
@@ -488,7 +562,7 @@ export function AccessControl() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={key.status === 'active' ? 'default' : 'secondary'}>
+                          <Badge variant={key.status === 'active' ? 'primary' : 'neutral'}>
                             {key.status}
                           </Badge>
                         </TableCell>
@@ -496,12 +570,12 @@ export function AccessControl() {
                         <TableCell className="hidden md:table-cell">
                           <div className="flex flex-wrap gap-1">
                             {key.permissions.slice(0, 2).map((perm, idx) => (
-                              <Badge key={idx} variant="outline" className="text-xs">
+                              <Badge key={idx} variant="neutral" className="text-xs">
                                 {perm.bucketName}: {formatPermissions(perm)}
                               </Badge>
                             ))}
                             {key.permissions.length > 2 && (
-                              <Badge variant="outline" className="text-xs">
+                              <Badge variant="neutral" className="text-xs">
                                 +{key.permissions.length - 2} more
                               </Badge>
                             )}
@@ -566,123 +640,82 @@ export function AccessControl() {
       </div>
 
       {/* Create Key Dialog */}
-      <Dialog open={createDialogOpen} onOpenChange={handleCloseCreateDialog}>
-        <DialogContent className="max-w-2xl">
+      <Dialog open={createDialogOpen} onOpenChange={handleCloseCreateDialog} size="form">
+        <DialogContent>
           {newlyCreatedKey ? (
-            // Success state - show the secret key
             <>
               <DialogHeader>
-                <DialogTitle>API Key Created Successfully</DialogTitle>
-                <DialogDescription>
-                  Save your secret access key now. You won't be able to see it again.
-                </DialogDescription>
+                <IconTile icon={<ShieldCheck />} tone="primary" size="md" />
+                <div className="min-w-0 flex-1">
+                  <DialogTitle>API key created</DialogTitle>
+                  <DialogDescription>
+                    Copy your secret access key now — this is the only time it will be shown.
+                  </DialogDescription>
+                </div>
               </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Key Name</label>
-                  <div className="text-sm text-muted-foreground">{newlyCreatedKey.name}</div>
+              <DialogBody className="space-y-5">
+                <div className="space-y-1.5">
+                  <label className="text-[12px] font-medium uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                    Key name
+                  </label>
+                  <div className="text-[14px] font-medium">{newlyCreatedKey.name}</div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Access Key ID</label>
-                  <div className="flex items-center gap-2">
-                    <code
-                      className="text-sm bg-muted px-3 py-2 rounded flex-1 cursor-pointer hover:bg-muted/80 transition-colors"
-                      onClick={() => {
-                        navigator.clipboard.writeText(newlyCreatedKey.accessKeyId);
-                        toast.success('Access Key ID copied to clipboard');
-                      }}
-                    >
-                      {newlyCreatedKey.accessKeyId}
-                    </code>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        navigator.clipboard.writeText(newlyCreatedKey.accessKeyId);
-                        toast.success('Access Key ID copied to clipboard');
-                      }}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
+                <CredentialField label="Access Key ID" value={newlyCreatedKey.accessKeyId} />
+                <CredentialField
+                  label="Secret Access Key"
+                  value={newlyCreatedKey.secretKey || ''}
+                  breakAll
+                />
+                <div className="flex gap-3 rounded-lg border border-[var(--accent-primary-border)] bg-[var(--accent-primary-soft)] px-3.5 py-3">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0 text-[var(--primary)] mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="text-[13.5px] font-medium text-[var(--foreground)]">
+                      Save this key now
+                    </p>
+                    <p className="text-[12.5px] leading-[1.5] text-[var(--muted-foreground)]">
+                      The secret access key cannot be retrieved again. If lost, you'll need to create a new key.
+                    </p>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Secret Access Key</label>
-                  <div className="flex items-center gap-2">
-                    <code
-                      className="text-sm bg-muted px-3 py-2 rounded flex-1 break-all cursor-pointer hover:bg-muted/80 transition-colors"
-                      onClick={() => {
-                        if (newlyCreatedKey.secretKey) {
-                          navigator.clipboard.writeText(newlyCreatedKey.secretKey);
-                          toast.success('Secret Access Key copied to clipboard');
-                        }
-                      }}
-                    >
-                      {newlyCreatedKey.secretKey}
-                    </code>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (newlyCreatedKey.secretKey) {
-                          navigator.clipboard.writeText(newlyCreatedKey.secretKey);
-                          toast.success('Secret Access Key copied to clipboard');
-                        }
-                      }}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="border rounded-lg p-4 bg-orange-100 border-orange-300 dark:bg-orange-950/20 dark:border-orange-900">
-                  <div className="flex gap-2">
-                    <ShieldX className="h-5 w-5 text-orange-700 dark:text-orange-500 flex-shrink-0" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-orange-950 dark:text-orange-200">
-                        Important: Save This Key Now
-                      </p>
-                      <p className="text-xs text-orange-900 dark:text-orange-300">
-                        This is the only time you'll see the secret access key. Make sure to copy and save it securely.
-                        If you lose it, you'll need to create a new key.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              </DialogBody>
               <DialogFooter>
-                <Button onClick={handleCloseCreateDialog}>
-                  Done
-                </Button>
+                <Button onClick={handleCloseCreateDialog}>Done</Button>
               </DialogFooter>
             </>
           ) : (
-            // Creation form
             <>
               <DialogHeader>
-                <DialogTitle>Create API Key</DialogTitle>
-                <DialogDescription>
-                  Create a new API key with optional bucket permissions
-                </DialogDescription>
+                <IconTile icon={<KeyRound />} tone="primary" size="md" />
+                <div className="min-w-0 flex-1">
+                  <DialogTitle>Create API key</DialogTitle>
+                  <DialogDescription>
+                    Generate a new access key pair. You can optionally grant bucket permissions in the same step.
+                  </DialogDescription>
+                </div>
               </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Key Name</label>
+              <DialogBody className="space-y-6">
+                <div className="space-y-1.5">
+                  <label htmlFor="new-key-name" className="text-[13px] font-medium">
+                    Key name
+                  </label>
                   <Input
-                    placeholder="My Application Key"
+                    id="new-key-name"
+                    placeholder="e.g. backups-prod"
                     value={newKeyName}
                     onChange={(e) => setNewKeyName(e.target.value)}
+                    autoFocus
                   />
-                  <p className="text-xs text-muted-foreground">
-                    A friendly name to identify this API key
+                  <p className="text-[12.5px] text-[var(--muted-foreground)]">
+                    A friendly name to identify this key in the console.
                   </p>
                 </div>
 
-                {/* Optional: Grant permissions during creation */}
-                <div className="space-y-3 border-t pt-4">
-                  <label className="flex items-center space-x-2 cursor-pointer">
+                <div className="space-y-3 rounded-lg border border-[var(--border)] p-4">
+                  <label className="flex cursor-pointer items-start gap-3">
                     <Checkbox
                       id="grant-permissions-on-create"
                       checked={createGrantPermissions}
+                      className="mt-0.5"
                       onCheckedChange={(checked) => {
                         setCreateGrantPermissions(checked as boolean);
                         if (!checked) {
@@ -693,22 +726,23 @@ export function AccessControl() {
                         }
                       }}
                     />
-                    <span className="text-sm font-medium">Grant bucket permissions now</span>
+                    <div className="flex-1">
+                      <div className="text-[13.5px] font-medium">Grant bucket permissions now</div>
+                      <p className="mt-0.5 text-[12.5px] text-[var(--muted-foreground)]">
+                        Optional — you can also do this later from the key's edit menu.
+                      </p>
+                    </div>
                   </label>
-                  <p className="text-xs text-muted-foreground">
-                    You can also grant permissions later from the Edit Permissions menu
-                  </p>
 
                   {createGrantPermissions && (
-                    <div className="space-y-4 pl-6 pt-2">
-                      {/* Bucket Selection */}
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Select Bucket</label>
+                    <div className="space-y-4 border-t border-[var(--border)] pt-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[13px] font-medium">Bucket</label>
                         <Select
                           value={createSelectedBucket}
                           onChange={(value) => setCreateSelectedBucket(value)}
                         >
-                          <SelectOption value="">-- Select a bucket --</SelectOption>
+                          <SelectOption value="">Select a bucket…</SelectOption>
                           {createAvailableBuckets.map((bucket) => (
                             <SelectOption key={bucket.name} value={bucket.name}>
                               {bucket.name}
@@ -717,59 +751,65 @@ export function AccessControl() {
                         </Select>
                       </div>
 
-                      {/* Permissions */}
                       {createSelectedBucket && (
-                        <div className="space-y-3">
-                          <label className="text-sm font-medium">Permissions</label>
-                          <div className="space-y-2 border rounded-lg p-3">
-                            <label className="flex items-center space-x-2 cursor-pointer">
-                              <Checkbox
-                                id="create-permission-read"
-                                checked={createPermissionRead}
-                                onCheckedChange={(checked) => setCreatePermissionRead(checked as boolean)}
-                              />
-                              <div>
-                                <span className="text-sm font-medium">Read</span>
-                                <p className="text-xs text-muted-foreground">GetObject, HeadObject, ListObjects</p>
-                              </div>
-                            </label>
-
-                            <label className="flex items-center space-x-2 cursor-pointer">
-                              <Checkbox
-                                id="create-permission-write"
-                                checked={createPermissionWrite}
-                                onCheckedChange={(checked) => setCreatePermissionWrite(checked as boolean)}
-                              />
-                              <div>
-                                <span className="text-sm font-medium">Write</span>
-                                <p className="text-xs text-muted-foreground">PutObject, DeleteObject</p>
-                              </div>
-                            </label>
-
-                            <label className="flex items-center space-x-2 cursor-pointer">
-                              <Checkbox
-                                id="create-permission-owner"
-                                checked={createPermissionOwner}
-                                onCheckedChange={(checked) => setCreatePermissionOwner(checked as boolean)}
-                              />
-                              <div>
-                                <span className="text-sm font-medium">Owner</span>
-                                <p className="text-xs text-muted-foreground">DeleteBucket, PutBucketPolicy</p>
-                              </div>
-                            </label>
+                        <div className="space-y-1.5">
+                          <label className="text-[13px] font-medium">Permissions</label>
+                          <div className="divide-y divide-[var(--border)] rounded-md border border-[var(--border)]">
+                            {[
+                              {
+                                id: 'create-permission-read',
+                                label: 'Read',
+                                desc: 'GetObject, HeadObject, ListObjects',
+                                checked: createPermissionRead,
+                                setChecked: setCreatePermissionRead,
+                              },
+                              {
+                                id: 'create-permission-write',
+                                label: 'Write',
+                                desc: 'PutObject, DeleteObject',
+                                checked: createPermissionWrite,
+                                setChecked: setCreatePermissionWrite,
+                              },
+                              {
+                                id: 'create-permission-owner',
+                                label: 'Owner',
+                                desc: 'DeleteBucket, PutBucketPolicy',
+                                checked: createPermissionOwner,
+                                setChecked: setCreatePermissionOwner,
+                              },
+                            ].map((p) => (
+                              <label
+                                key={p.id}
+                                htmlFor={p.id}
+                                className="flex cursor-pointer items-start gap-3 px-3.5 py-3 transition-colors hover:bg-[var(--accent)]"
+                              >
+                                <Checkbox
+                                  id={p.id}
+                                  checked={p.checked}
+                                  className="mt-0.5"
+                                  onCheckedChange={(checked) => p.setChecked(checked as boolean)}
+                                />
+                                <div className="flex-1">
+                                  <div className="text-[13.5px] font-medium">{p.label}</div>
+                                  <p className="mt-0.5 font-mono text-[12px] text-[var(--muted-foreground)]">
+                                    {p.desc}
+                                  </p>
+                                </div>
+                              </label>
+                            ))}
                           </div>
                         </div>
                       )}
                     </div>
                   )}
                 </div>
-              </div>
+              </DialogBody>
               <DialogFooter>
-                <Button variant="outline" onClick={handleCloseCreateDialog}>
+                <Button variant="secondary" onClick={handleCloseCreateDialog}>
                   Cancel
                 </Button>
                 <Button onClick={handleCreateKey} disabled={!newKeyName}>
-                  Create Key
+                  Create key
                 </Button>
               </DialogFooter>
             </>
@@ -788,7 +828,7 @@ export function AccessControl() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+            <Button variant="secondary" onClick={() => setDeleteDialogOpen(false)}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleDeleteKey}>
@@ -827,7 +867,7 @@ export function AccessControl() {
                   {selectedKey?.accessKeyId}
                 </code>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   onClick={() => {
                     if (selectedKey?.accessKeyId) {
@@ -862,7 +902,7 @@ export function AccessControl() {
                       {revealedSecretKey}
                     </code>
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       onClick={() => {
                         if (revealedSecretKey) {
@@ -960,7 +1000,7 @@ export function AccessControl() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSettingsDialogOpen(false)}>
+            <Button variant="secondary" onClick={() => setSettingsDialogOpen(false)}>
               Cancel
             </Button>
             <Button onClick={handleSaveKeySettings}>
@@ -971,185 +1011,113 @@ export function AccessControl() {
       </Dialog>
 
       {/* Key Details Dialog */}
-      <Dialog open={keyDetailsDialogOpen} onOpenChange={setKeyDetailsDialogOpen}>
-        <DialogContent className="max-w-2xl">
+      <Dialog open={keyDetailsDialogOpen} onOpenChange={setKeyDetailsDialogOpen} size="form">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>API Key Details</DialogTitle>
-            <DialogDescription>
-              View and manage your API key credentials and permissions
-            </DialogDescription>
+            <IconTile icon={<KeyRound />} tone="primary" size="md" />
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="truncate">{viewingKey?.name || 'API key'}</DialogTitle>
+              <DialogDescription>View credentials and bucket permissions for this key.</DialogDescription>
+            </div>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            {/* Key Name and Status */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Key Name</label>
-                <div className="text-sm text-muted-foreground">{viewingKey?.name}</div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Status</label>
-                <div>
-                  <Badge variant={viewingKey?.status === 'active' ? 'default' : 'secondary'}>
-                    {viewingKey?.status}
-                  </Badge>
-                </div>
-              </div>
-            </div>
-
-            {/* Access Key ID */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Access Key ID</label>
+          <DialogBody className="space-y-5">
+            {/* Meta strip */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-[var(--border)] bg-[var(--surface-sunken)] px-4 py-3">
               <div className="flex items-center gap-2">
-                <code
-                  className="text-sm bg-muted px-3 py-2 rounded flex-1 break-all cursor-pointer hover:bg-muted/80 transition-colors"
-                  onClick={() => {
-                    if (viewingKey?.accessKeyId) {
-                      navigator.clipboard.writeText(viewingKey.accessKeyId);
-                      setCopiedAccessKeyId(true);
-                      setTimeout(() => setCopiedAccessKeyId(false), 2000);
-                      toast.success('Access Key ID copied to clipboard');
-                    }
-                  }}
-                >
-                  {viewingKey?.accessKeyId}
-                </code>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (viewingKey?.accessKeyId) {
-                      navigator.clipboard.writeText(viewingKey.accessKeyId);
-                      setCopiedAccessKeyId(true);
-                      setTimeout(() => setCopiedAccessKeyId(false), 2000);
-                      toast.success('Access Key ID copied to clipboard');
-                    }
-                  }}
-                >
-                  {copiedAccessKeyId ? 'Copied' : <Copy className="h-4 w-4" />}
-                </Button>
+                <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                  Status
+                </span>
+                <Badge variant={viewingKey?.status === 'active' ? 'success' : 'neutral'}>
+                  {viewingKey?.status}
+                </Badge>
               </div>
-            </div>
-
-            {/* Secret Access Key */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Secret Access Key</label>
-              <div className="flex items-center gap-2">
-                {isLoadingDetailsSecretKey ? (
-                  <div className="flex items-center gap-2 text-muted-foreground flex-1 bg-muted px-3 py-2 rounded">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-sm">Loading secret key...</span>
-                  </div>
-                ) : (
-                  <>
-                    <code
-                      className="text-sm bg-muted px-3 py-2 rounded flex-1 break-all cursor-pointer hover:bg-muted/80 transition-colors"
-                      onClick={() => {
-                        if (detailsSecretKey) {
-                          navigator.clipboard.writeText(detailsSecretKey);
-                          setCopiedSecretKey(true);
-                          setTimeout(() => setCopiedSecretKey(false), 2000);
-                          toast.success('Secret Access Key copied to clipboard');
-                        }
-                      }}
-                    >
-                      {'•'.repeat(40)}
-                    </code>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (detailsSecretKey) {
-                          navigator.clipboard.writeText(detailsSecretKey);
-                          setCopiedSecretKey(true);
-                          setTimeout(() => setCopiedSecretKey(false), 2000);
-                          toast.success('Secret Access Key copied to clipboard');
-                        }
-                      }}
-                      disabled={!detailsSecretKey}
-                    >
-                      {copiedSecretKey ? 'Copied' : <Copy className="h-4 w-4" />}
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Metadata */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Created</label>
-                <div className="text-sm text-muted-foreground">{viewingKey && formatDate(viewingKey.createdAt)}</div>
+              <div className="flex items-center gap-2 text-[13px] text-[var(--muted-foreground)]">
+                <Calendar className="h-3.5 w-3.5" />
+                <span className="text-[11px] font-medium uppercase tracking-[0.06em]">Created</span>
+                <span className="text-[var(--foreground)]">
+                  {viewingKey && formatDate(viewingKey.createdAt)}
+                </span>
               </div>
               {viewingKey?.expiration && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Expiration</label>
-                  <div className="text-sm text-muted-foreground">{formatDate(viewingKey.expiration)}</div>
+                <div className="flex items-center gap-2 text-[13px] text-[var(--muted-foreground)]">
+                  <Calendar className="h-3.5 w-3.5" />
+                  <span className="text-[11px] font-medium uppercase tracking-[0.06em]">Expires</span>
+                  <span className="text-[var(--foreground)]">{formatDate(viewingKey.expiration)}</span>
                 </div>
               )}
             </div>
 
+            {/* Credentials */}
+            <div className="space-y-4">
+              <CredentialField
+                label="Access Key ID"
+                value={viewingKey?.accessKeyId || ''}
+                breakAll
+              />
+              <CredentialField
+                label="Secret Access Key"
+                value={detailsSecretKey}
+                breakAll
+                maskable
+                loading={isLoadingDetailsSecretKey}
+              />
+            </div>
+
             {/* Bucket Permissions */}
-            <div className="space-y-3">
-              <label className="text-sm font-medium">Bucket Permissions</label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[12px] font-medium uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                  Bucket permissions
+                </label>
+                {viewingKey && viewingKey.permissions.length > 0 && (
+                  <span className="text-[12px] text-[var(--muted-foreground)]">
+                    {viewingKey.permissions.length} bucket
+                    {viewingKey.permissions.length === 1 ? '' : 's'}
+                  </span>
+                )}
+              </div>
               {viewingKey && viewingKey.permissions.length > 0 ? (
-                <div className="border rounded-lg divide-y">
+                <div className="divide-y divide-[var(--border)] overflow-hidden rounded-lg border border-[var(--border)]">
                   {viewingKey.permissions.map((perm, idx) => (
-                    <div key={idx} className="p-3 flex items-center justify-between">
-                      <div className="space-y-1">
-                        <div className="text-sm font-medium">{perm.bucketName}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {formatPermissions(perm)}
-                        </div>
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between gap-3 px-3.5 py-2.5"
+                    >
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <Database className="h-3.5 w-3.5 flex-shrink-0 text-[var(--muted-foreground)]" />
+                        <span className="truncate font-mono text-[13px]">{perm.bucketName}</span>
                       </div>
-                      <div className="flex gap-1">
-                        {perm.read && (
-                          <Badge variant="outline" className="text-xs">
-                            Read
-                          </Badge>
-                        )}
-                        {perm.write && (
-                          <Badge variant="outline" className="text-xs">
-                            Write
-                          </Badge>
-                        )}
-                        {perm.owner && (
-                          <Badge variant="outline" className="text-xs">
-                            Owner
-                          </Badge>
-                        )}
+                      <div className="flex flex-shrink-0 gap-1">
+                        {perm.read && <Badge variant="neutral">Read</Badge>}
+                        {perm.write && <Badge variant="neutral">Write</Badge>}
+                        {perm.owner && <Badge variant="warning">Owner</Badge>}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="border rounded-lg p-6 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    This key has no bucket permissions yet
+                <div className="rounded-lg border border-dashed border-[var(--border)] px-4 py-6 text-center">
+                  <p className="text-[13px] text-[var(--muted-foreground)]">
+                    No bucket permissions yet.
                   </p>
                 </div>
               )}
             </div>
-          </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => {
                 setKeyDetailsDialogOpen(false);
                 if (viewingKey) {
                   handleOpenEditPermissions(viewingKey);
                 }
               }}
-              className="w-full sm:w-auto"
             >
               <Edit className="h-4 w-4" />
-              Edit Permissions
+              Edit permissions
             </Button>
-            <Button
-              onClick={() => setKeyDetailsDialogOpen(false)}
-              className="w-full sm:w-auto"
-            >
-              Close
-            </Button>
+            <Button onClick={() => setKeyDetailsDialogOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1266,13 +1234,13 @@ export function AccessControl() {
                             </p>
                             <div className="flex flex-wrap gap-2">
                               {bucketPermission.read && (
-                                <Badge variant="secondary">Read</Badge>
+                                <Badge variant="neutral">Read</Badge>
                               )}
                               {bucketPermission.write && (
-                                <Badge variant="secondary">Write</Badge>
+                                <Badge variant="neutral">Write</Badge>
                               )}
                               {bucketPermission.owner && (
-                                <Badge variant="secondary">Owner</Badge>
+                                <Badge variant="neutral">Owner</Badge>
                               )}
                             </div>
                             <p className="text-xs text-muted-foreground mt-2">
@@ -1302,9 +1270,9 @@ export function AccessControl() {
                       <div key={idx} className="flex items-center justify-between text-sm p-2 bg-muted/30 rounded">
                         <span className="font-medium">{perm.bucketName}</span>
                         <div className="flex gap-1">
-                          {perm.read && <Badge variant="outline" className="text-xs">R</Badge>}
-                          {perm.write && <Badge variant="outline" className="text-xs">W</Badge>}
-                          {perm.owner && <Badge variant="outline" className="text-xs">O</Badge>}
+                          {perm.read && <Badge variant="neutral" className="text-xs">R</Badge>}
+                          {perm.write && <Badge variant="neutral" className="text-xs">W</Badge>}
+                          {perm.owner && <Badge variant="neutral" className="text-xs">O</Badge>}
                         </div>
                       </div>
                     ))}
@@ -1314,7 +1282,7 @@ export function AccessControl() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditPermissionsDialogOpen(false)}>
+            <Button variant="secondary" onClick={() => setEditPermissionsDialogOpen(false)}>
               Cancel
             </Button>
             <Button

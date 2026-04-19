@@ -1,3 +1,4 @@
+import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -7,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { IconTile } from '@/components/ui/icon-tile';
 import type { S3Object } from '@/types';
 
 interface DeleteObjectDialogProps {
@@ -27,16 +29,19 @@ export function DeleteObjectDialog({ open, onOpenChange, object, onDeleteObject 
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange} size="destructive">
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete Object</DialogTitle>
-          <DialogDescription>
-            Are you sure you want to delete "{object?.key}"? This action cannot be undone.
-          </DialogDescription>
+          <IconTile icon={<Trash2 />} tone="destructive" size="md" />
+          <div className="flex-1">
+            <DialogTitle>Delete Object</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{object?.key}"? This action cannot be undone.
+            </DialogDescription>
+          </div>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button variant="destructive" onClick={handleDelete}>

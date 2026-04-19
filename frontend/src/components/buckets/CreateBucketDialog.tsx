@@ -1,14 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { IconTile } from '@/components/ui/icon-tile';
 import { toast } from 'sonner';
 
 interface CreateBucketDialogProps {
@@ -19,6 +22,8 @@ interface CreateBucketDialogProps {
 
 export function CreateBucketDialog({ open, onOpenChange, onCreateBucket }: CreateBucketDialogProps) {
   const [bucketName, setBucketName] = useState('');
+
+  useEffect(() => { if (!open) setBucketName(''); }, [open]);
 
   const handleCreate = async () => {
     if (!bucketName) {
@@ -37,15 +42,19 @@ export function CreateBucketDialog({ open, onOpenChange, onCreateBucket }: Creat
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create New Bucket</DialogTitle>
-          <DialogDescription>
-            Create a new storage bucket for your objects
-          </DialogDescription>
+          <IconTile icon={<Database />} tone="primary" size="md" />
+          <div className="flex-1">
+            <DialogTitle>Create New Bucket</DialogTitle>
+            <DialogDescription>
+              Create a new storage bucket for your objects
+            </DialogDescription>
+          </div>
         </DialogHeader>
-        <div className="space-y-4 py-4">
+        <DialogBody className="space-y-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">Bucket Name</label>
             <Input
+              autoFocus
               placeholder="my-bucket-name"
               value={bucketName}
               onChange={(e) => setBucketName(e.target.value)}
@@ -59,13 +68,13 @@ export function CreateBucketDialog({ open, onOpenChange, onCreateBucket }: Creat
               Must be unique and follow DNS naming conventions
             </p>
           </div>
-        </div>
-        <DialogFooter className="space-y-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
-            variant={!bucketName ? 'default_disabled' : 'default'}
+            variant="primary"
             onClick={handleCreate}
             disabled={!bucketName}
           >

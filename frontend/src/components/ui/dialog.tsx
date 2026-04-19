@@ -1,149 +1,201 @@
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+type DialogSize = 'standard' | 'form' | 'destructive';
 
 interface DialogContextValue {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  size: DialogSize;
 }
 
 const DialogContext = React.createContext<DialogContextValue | undefined>(undefined);
 
 function useDialog() {
-  const context = React.useContext(DialogContext);
-  if (!context) {
-    throw new Error('useDialog must be used within a Dialog');
-  }
-  return context;
+  const ctx = React.useContext(DialogContext);
+  if (!ctx) throw new Error('useDialog must be used within a Dialog');
+  return ctx;
 }
 
 interface DialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  size?: DialogSize;
   children: React.ReactNode;
 }
 
-const Dialog: React.FC<DialogProps> = ({ open = false, onOpenChange, children }) => {
-  return (
-    <DialogContext.Provider value={{ open, onOpenChange: onOpenChange || (() => {}) }}>
-      {children}
-    </DialogContext.Provider>
-  );
-};
+const Dialog: React.FC<DialogProps> = ({ open = false, onOpenChange, size = 'standard', children }) => (
+  <DialogContext.Provider value={{ open, onOpenChange: onOpenChange || (() => {}), size }}>
+    {children}
+  </DialogContext.Provider>
+);
 
-const DialogTrigger = React.forwardRef<
-  HTMLButtonElement,
-  React.ButtonHTMLAttributes<HTMLButtonElement>
->(({ onClick, ...props }, ref) => {
-  const { onOpenChange } = useDialog();
-  return (
-    <button
-      ref={ref}
-      onClick={(e) => {
-        onOpenChange(true);
-        onClick?.(e);
-      }}
-      {...props}
-    />
-  );
-});
-DialogTrigger.displayName = 'DialogTrigger';
-
-const DialogPortal: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { open } = useDialog();
-  if (!open) return null;
-  return <>{children}</>;
-};
-
-const DialogOverlay = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => {
+const DialogTrigger = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
+  ({ onClick, ...props }, ref) => {
     const { onOpenChange } = useDialog();
     return (
-      <div
+      <button
         ref={ref}
-        className={cn(
-          'fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
-          className
-        )}
-        onClick={() => onOpenChange(false)}
+        onClick={(e) => { onOpenChange(true); onClick?.(e); }}
         {...props}
       />
     );
   }
 );
-DialogOverlay.displayName = 'DialogOverlay';
+DialogTrigger.displayName = 'DialogTrigger';
+
+const widthClass: Record<DialogSize, string> = {
+  standard: 'max-w-[480px]',
+  form: 'max-w-[600px]',
+  destructive: 'max-w-[440px]',
+};
+
+const DialogOverlay: React.FC = () => {
+  const { onOpenChange } = useDialog();
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[8px]"
+      onClick={() => onOpenChange(false)}
+    />
+  );
+};
 
 const DialogContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, children, ...props }, ref) => {
-    const { onOpenChange } = useDialog();
-    return (
-      <DialogPortal>
+    const { open, onOpenChange, size } = useDialog();
+    const containerRef = React.useRef<HTMLDivElement>(null);
+
+    React.useEffect(() => {
+      if (!open) return;
+      const previouslyFocused = document.activeElement as HTMLElement | null;
+
+      const keyHandler = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          onOpenChange(false);
+          return;
+        }
+        if (e.key !== 'Tab' || !containerRef.current) return;
+        const focusables = containerRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      };
+      document.addEventListener('keydown', keyHandler);
+
+      setTimeout(() => {
+        const first = containerRef.current?.querySelector<HTMLElement>(
+          'input:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        first?.focus();
+      }, 0);
+
+      return () => {
+        document.removeEventListener('keydown', keyHandler);
+        previouslyFocused?.focus?.();
+      };
+    }, [open, onOpenChange]);
+
+    if (!open) return null;
+
+    return createPortal(
+      <>
         <DialogOverlay />
-        <div className="fixed left-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%] w-[calc(100%-2rem)] sm:w-full max-w-lg">
+        <div
+          ref={containerRef}
+          role="dialog"
+          aria-modal="true"
+          className={cn(
+            'fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2',
+            widthClass[size],
+          )}
+        >
           <div
             ref={ref}
-            style={{ backgroundColor: 'var(--background)' }}
             className={cn(
-              'relative p-4 sm:p-6 shadow-lg duration-200 rounded-lg border',
-              'data-[state=open]:animate-in data-[state=closed]:animate-out',
-              'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
-              'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
-              'data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%]',
-              'data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]',
-              className
+              'relative overflow-hidden rounded-xl border border-[var(--border)]',
+              'bg-[var(--card)] text-[var(--card-foreground)]',
+              'shadow-[0_20px_40px_rgba(0,0,0,0.3)]',
+              className,
             )}
             {...props}
           >
             {children}
             <button
+              type="button"
               onClick={() => onOpenChange(false)}
-              className="absolute right-4 top-4 rounded-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer"
+              aria-label="Close"
+              className="absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
             >
               <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
             </button>
           </div>
         </div>
-      </DialogPortal>
+      </>,
+      document.body,
     );
   }
 );
 DialogContent.displayName = 'DialogContent';
 
-const DialogHeader: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
-  className,
-  ...props
-}) => <div className={cn('flex flex-col space-y-1.5 text-center sm:text-left bg-background', className)} {...props} />;
+const DialogHeader: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
+  <div
+    className={cn(
+      'flex items-start gap-3 border-b border-[var(--border)] px-6 py-5',
+      className,
+    )}
+    {...props}
+  />
+);
 DialogHeader.displayName = 'DialogHeader';
 
-const DialogFooter: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
-  className,
-  ...props
-}) => (
+const DialogBody: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
+  <div className={cn('px-6 py-5', className)} {...props} />
+);
+DialogBody.displayName = 'DialogBody';
+
+const DialogFooter: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
   <div
-    className={cn('flex flex-col-reverse sm:flex-row sm:justify-end space-y-2 space-y-reverse sm:space-y-0 sm:space-x-2', className)}
+    className={cn(
+      'flex justify-end gap-2 border-t border-[var(--border)] bg-[var(--surface-sunken)] px-6 py-3.5',
+      className,
+    )}
     {...props}
   />
 );
 DialogFooter.displayName = 'DialogFooter';
 
-const DialogTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(
+const DialogTitleText = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => (
     <h2
       ref={ref}
-      className={cn('text-lg font-semibold leading-none tracking-tight', className)}
+      className={cn('text-[20px] font-semibold tracking-[-0.015em] leading-tight', className)}
       {...props}
     />
   )
 );
-DialogTitle.displayName = 'DialogTitle';
+DialogTitleText.displayName = 'DialogTitle';
 
-const DialogDescription = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLParagraphElement>
->(({ className, ...props }, ref) => (
-  <p ref={ref} className={cn('text-xs text-muted-foreground', className)} {...props} />
-));
+const DialogDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
+  ({ className, ...props }, ref) => (
+    <p
+      ref={ref}
+      className={cn('mt-1 text-[13.5px] leading-[1.45] text-[var(--muted-foreground)]', className)}
+      {...props}
+    />
+  )
+);
 DialogDescription.displayName = 'DialogDescription';
 
 export {
@@ -151,7 +203,8 @@ export {
   DialogTrigger,
   DialogContent,
   DialogHeader,
+  DialogBody,
   DialogFooter,
-  DialogTitle,
+  DialogTitleText as DialogTitle,
   DialogDescription,
 };

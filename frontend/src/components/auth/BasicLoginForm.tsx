@@ -99,7 +99,7 @@ export function BasicLoginForm({ showOIDC = false, config }: BasicLoginFormProps
             </div>
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               className="w-full"
               onClick={loginOIDC}
             >

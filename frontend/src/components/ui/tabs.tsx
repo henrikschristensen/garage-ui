@@ -53,7 +53,7 @@ const TabsList = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivEl
     <div
       ref={ref}
       className={cn(
-        'inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground',
+        'flex h-12 items-center gap-0 border-b border-[var(--border)] text-[14px]',
         className
       )}
       {...props}
@@ -70,15 +70,16 @@ const TabsTrigger = React.forwardRef<HTMLButtonElement, TabsTriggerProps>(
   ({ className, value: triggerValue, onClick, ...props }, ref) => {
     const { value, onValueChange } = useTabs();
     const isActive = value === triggerValue;
-
     return (
       <button
         ref={ref}
         className={cn(
-          'inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none',
+          'relative h-12 px-3.5 -mb-px inline-flex items-center justify-center',
+          'text-[14px] font-medium transition-colors cursor-pointer',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] rounded-sm',
           isActive
-            ? 'bg-background text-foreground shadow-sm'
-            : 'hover:bg-accent hover:text-accent-foreground',
+            ? 'text-[var(--primary)] border-b-2 border-[var(--primary)]'
+            : 'text-[var(--muted-foreground)] border-b-2 border-transparent hover:text-[var(--foreground)]',
           className
         )}
         onClick={(e) => {

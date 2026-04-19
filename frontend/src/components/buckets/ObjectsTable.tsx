@@ -282,7 +282,7 @@ export function ObjectsTable({
               </TableCell>
               <TableCell className="hidden md:table-cell">
                 {obj.storageClass && (
-                  <Badge variant="secondary">{obj.storageClass}</Badge>
+                  <Badge variant="neutral">{obj.storageClass}</Badge>
                 )}
               </TableCell>
               <TableCell>{obj.isFolder ? null : formatBytes(obj.size)}</TableCell>
@@ -400,7 +400,7 @@ export function ObjectsTable({
 
           <div className="flex items-center gap-2">
             <Button
-              variant={hasPrevious ? "default": "default_disabled"}
+              variant="primary"
               size="sm"
               onClick={handlePreviousPage}
               disabled={!hasPrevious}
@@ -411,7 +411,7 @@ export function ObjectsTable({
             </Button>
 
             <Button
-                variant={hasNext ? "default": "default_disabled"}
+              variant="primary"
               size="sm"
               onClick={handleNextPage}
               disabled={!hasNext}
