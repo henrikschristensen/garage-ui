@@ -57,9 +57,6 @@ auth:
 
     # OIDC Provider URLs
     issuer_url: "https://keycloak.example.com/realms/master"
-    auth_url: "https://keycloak.example.com/realms/master/protocol/openid-connect/auth"
-    token_url: "https://keycloak.example.com/realms/master/protocol/openid-connect/token"
-    userinfo_url: "https://keycloak.example.com/realms/master/protocol/openid-connect/userinfo"
 
     # Token validation
     skip_issuer_check: false

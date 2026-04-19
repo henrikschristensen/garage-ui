@@ -409,9 +409,6 @@ config:
         - email
         - profile
       issuer_url: "https://auth.example.com/realms/production"
-      auth_url: "https://auth.example.com/realms/production/protocol/openid-connect/auth"
-      token_url: "https://auth.example.com/realms/production/protocol/openid-connect/token"
-      userinfo_url: "https://auth.example.com/realms/production/protocol/openid-connect/userinfo"
       cookie_secure: true
       cookie_http_only: true
       cookie_same_site: "lax"

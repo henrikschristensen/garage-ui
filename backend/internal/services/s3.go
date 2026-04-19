@@ -37,7 +37,6 @@ func NewS3Service(cfg *config.GarageConfig, adminService *GarageAdminService) *S
 	}
 
 	client, err := minio.New(cfg.Endpoint, &minio.Options{
-		//Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
 		Secure: cfg.UseSSL,
 		Region: cfg.Region,
 	})

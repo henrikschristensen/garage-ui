@@ -135,3 +135,22 @@ install:
 update: prod-pull prod-restart
 
 .DEFAULT_GOAL := help
+
+.PHONY: test test-race test-cover test-smoke
+
+## test: Run backend unit tests
+test:
+	cd backend && go test ./...
+
+## test-race: Run backend unit tests with the race detector
+test-race:
+	cd backend && go test -race ./...
+
+## test-cover: Run backend unit tests with coverage and enforce the coverage gate
+test-cover:
+	cd backend && go test -coverprofile=../coverage.out -coverpkg=./... ./...
+	bash scripts/coverage-gate.sh coverage.out
+
+## test-smoke: Run the docker-compose smoke test (requires Docker + compose v2)
+test-smoke:
+	cd backend && go test -tags=smoke -timeout 10m ./tests/smoke/...

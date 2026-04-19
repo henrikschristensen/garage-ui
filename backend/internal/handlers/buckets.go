@@ -7,14 +7,14 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-// BucketHandler handles bucket-related operations
+// BucketHandler handles bucket-related HTTP requests.
 type BucketHandler struct {
-	adminService *services.GarageAdminService
-	s3Service    *services.S3Service
+	adminService services.AdminService
+	s3Service    services.S3Storage
 }
 
-// NewBucketHandler creates a new bucket handler
-func NewBucketHandler(adminService *services.GarageAdminService, s3Service *services.S3Service) *BucketHandler {
+// NewBucketHandler creates a new bucket handler.
+func NewBucketHandler(adminService services.AdminService, s3Service services.S3Storage) *BucketHandler {
 	return &BucketHandler{
 		adminService: adminService,
 		s3Service:    s3Service,

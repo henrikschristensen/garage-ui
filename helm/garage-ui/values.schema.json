@@ -292,24 +292,6 @@
                   "pattern": "^https?://",
                   "default": "https://keycloak.example.com/realms/master"
                 },
-                "auth_url": {
-                  "type": "string",
-                  "description": "Authorization endpoint URL",
-                  "pattern": "^https?://",
-                  "default": "https://keycloak.example.com/realms/master/protocol/openid-connect/auth"
-                },
-                "token_url": {
-                  "type": "string",
-                  "description": "Token endpoint URL",
-                  "pattern": "^https?://",
-                  "default": "https://keycloak.example.com/realms/master/protocol/openid-connect/token"
-                },
-                "userinfo_url": {
-                  "type": "string",
-                  "description": "User info endpoint URL",
-                  "pattern": "^https?://",
-                  "default": "https://keycloak.example.com/realms/master/protocol/openid-connect/userinfo"
-                },
                 "skip_issuer_check": {
                   "type": "boolean",
                   "description": "Skip issuer validation (not recommended for production)",

@@ -64,9 +64,6 @@ type OIDCConfig struct {
 	ClientSecret      string   `mapstructure:"client_secret"`
 	Scopes            []string `mapstructure:"scopes"`
 	IssuerURL         string   `mapstructure:"issuer_url"`
-	AuthURL           string   `mapstructure:"auth_url"`
-	TokenURL          string   `mapstructure:"token_url"`
-	UserinfoURL       string   `mapstructure:"userinfo_url"`
 	SkipIssuerCheck   bool     `mapstructure:"skip_issuer_check"`
 	SkipExpiryCheck   bool     `mapstructure:"skip_expiry_check"`
 	EmailAttribute    string   `mapstructure:"email_attribute"`
@@ -175,9 +172,6 @@ func bindEnvVars() {
 	viper.BindEnv("auth.oidc.client_secret", "GARAGE_UI_AUTH_OIDC_CLIENT_SECRET")
 	viper.BindEnv("auth.oidc.scopes", "GARAGE_UI_AUTH_OIDC_SCOPES")
 	viper.BindEnv("auth.oidc.issuer_url", "GARAGE_UI_AUTH_OIDC_ISSUER_URL")
-	viper.BindEnv("auth.oidc.auth_url", "GARAGE_UI_AUTH_OIDC_AUTH_URL")
-	viper.BindEnv("auth.oidc.token_url", "GARAGE_UI_AUTH_OIDC_TOKEN_URL")
-	viper.BindEnv("auth.oidc.userinfo_url", "GARAGE_UI_AUTH_OIDC_USERINFO_URL")
 	viper.BindEnv("auth.oidc.skip_issuer_check", "GARAGE_UI_AUTH_OIDC_SKIP_ISSUER_CHECK")
 	viper.BindEnv("auth.oidc.skip_expiry_check", "GARAGE_UI_AUTH_OIDC_SKIP_EXPIRY_CHECK")
 	viper.BindEnv("auth.oidc.email_attribute", "GARAGE_UI_AUTH_OIDC_EMAIL_ATTRIBUTE")
@@ -243,6 +237,13 @@ func (c *Config) Validate() error {
 		}
 		if len(c.Auth.OIDC.Scopes) == 0 {
 			return fmt.Errorf("oidc scopes are required when oidc is enabled")
+		}
+		// Every authenticated route on this service grants full admin
+		// access — there is no separate authorization layer. An empty
+		// admin_role would therefore promote every user in the IdP realm
+		// to cluster admin. Require operators to opt in explicitly.
+		if c.Auth.OIDC.AdminRole == "" {
+			return fmt.Errorf("oidc admin_role is required when oidc is enabled: leaving it empty would grant cluster-admin access to any authenticated IdP user")
 		}
 	}
 
