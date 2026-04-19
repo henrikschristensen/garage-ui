@@ -43,7 +43,6 @@ export function BucketSettings() {
     setDeleting(true);
     try {
       await deleteMutation.mutateAsync(bucket.name);
-      toast.success('Bucket deleted');
       navigate('/buckets');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Delete failed');
