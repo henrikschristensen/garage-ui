@@ -4,9 +4,9 @@ A web interface for managing [Garage](https://garagehq.deuxfleurs.fr/) object st
 
 [![Docker Build](https://github.com/Noooste/garage-ui/actions/workflows/build.yml/badge.svg)](https://github.com/Noooste/garage-ui/actions/workflows/build.yml)
 [![Helm Chart](https://github.com/Noooste/garage-ui/actions/workflows/release.yml/badge.svg)](https://github.com/Noooste/garage-ui/actions/workflows/release.yml)
+[![codecov](https://codecov.io/gh/Noooste/garage-ui/branch/main/graph/badge.svg)](https://codecov.io/gh/Noooste/garage-ui)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Go Version](https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go)](https://go.dev/)
-[![Node Version](https://img.shields.io/badge/Node-25%2B-339933?logo=node.js)](https://nodejs.org/)
 [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/garage-ui)](https://artifacthub.io/packages/search?repo=garage-ui)
 
 ---
