@@ -294,10 +294,19 @@ func TestGrantBucketPermission_Success(t *testing.T) {
 	}
 	admin.AllowBucketKeyFn = func(_ context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error) {
 		if req.BucketID != "id-1" || req.AccessKeyID != "AKIA" {
-			t.Errorf("req = %+v", req)
+			t.Errorf("allow req = %+v", req)
 		}
 		if !req.Permissions.Read || !req.Permissions.Write || req.Permissions.Owner {
-			t.Errorf("perms = %+v", req.Permissions)
+			t.Errorf("allow perms = %+v", req.Permissions)
+		}
+		return &models.GarageBucketInfo{ID: "id-1"}, nil
+	}
+	admin.DenyBucketKeyFn = func(_ context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error) {
+		if req.BucketID != "id-1" || req.AccessKeyID != "AKIA" {
+			t.Errorf("deny req = %+v", req)
+		}
+		if req.Permissions.Read || req.Permissions.Write || !req.Permissions.Owner {
+			t.Errorf("deny perms = %+v", req.Permissions)
 		}
 		return &models.GarageBucketInfo{ID: "id-1"}, nil
 	}
