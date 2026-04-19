@@ -18,12 +18,13 @@ func IntoCtx(ctx context.Context, l zerolog.Logger) context.Context {
 
 // FromCtx returns the logger bound to ctx. If no logger is bound (e.g. the
 // call is outside any middleware, or ctx is nil), it returns the global
-// logger. Never returns a zero-value zerolog.Logger.
-func FromCtx(ctx context.Context) zerolog.Logger {
+// logger. Never returns nil.
+func FromCtx(ctx context.Context) *zerolog.Logger {
 	if ctx != nil {
 		if l, ok := ctx.Value(ctxKey{}).(zerolog.Logger); ok {
-			return l
+			return &l
 		}
 	}
-	return Get().Logger
+	l := Get().Logger
+	return &l
 }

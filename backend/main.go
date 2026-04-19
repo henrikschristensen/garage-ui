@@ -5,17 +5,22 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
+	"runtime/debug"
 	"syscall"
+	"time"
 
 	"Noooste/garage-ui/internal/auth"
 	"Noooste/garage-ui/internal/config"
 	"Noooste/garage-ui/internal/handlers"
+	appmw "Noooste/garage-ui/internal/middleware"
 	"Noooste/garage-ui/internal/routes"
 	"Noooste/garage-ui/internal/services"
 	"Noooste/garage-ui/pkg/logger"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/recover"
+	"github.com/rs/zerolog/log"
 )
 
 //	@title			Garage UI API
@@ -78,6 +83,7 @@ func main() {
 	logger.Info().
 		Str("config_path", *configPath).
 		Str("version", version).
+		Str("go_version", runtime.Version()).
 		Str("environment", cfg.Server.Environment).
 		Msg("Starting Garage UI Backend")
 
@@ -147,8 +153,22 @@ func main() {
 		ErrorHandler:    customErrorHandler,
 	})
 
-	// Apply global middleware
-	app.Use(recover.New()) // Panic recovery
+	// Apply global middleware (order matters):
+	//   1. recover — must be outermost so panics become 500s.
+	//   2. RequestID — mints/reads X-Request-ID before any logger needs it.
+	//   3. Logging — builds per-request zerolog logger + emits access log.
+	// Auth middleware is installed per-route inside routes.SetupRoutes.
+	app.Use(recover.New(recover.Config{
+		EnableStackTrace: true,
+		StackTraceHandler: func(c fiber.Ctx, e interface{}) {
+			logger.FromCtx(c.Context()).Error().
+				Interface("panic", e).
+				Bytes("stack", debug.Stack()).
+				Msg("panic_recovered")
+		},
+	}))
+	app.Use(appmw.RequestID())
+	app.Use(appmw.Logging(log.Logger))
 
 	// Setup routes
 	logger.Info().Msg("Setting up routes")
@@ -178,38 +198,38 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown the server
+	// Wait for interrupt signal to gracefully shutdown the server.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
-	<-quit
+	sig := <-quit
 
-	logger.Info().Msg("Shutting down server")
+	logger.Info().Str("signal", sig.String()).Msg("Shutting down server")
+	shutdownStart := time.Now()
 	if err := app.Shutdown(); err != nil {
 		logger.Fatal().Err(err).Msg("Server shutdown failed")
 	}
 
-	logger.Info().Msg("Server stopped gracefully")
+	logger.Info().
+		Dur("shutdown_duration", time.Since(shutdownStart)).
+		Msg("Server stopped gracefully")
 }
 
-// customErrorHandler handles errors globally
+// customErrorHandler handles errors globally. It uses the per-request logger
+// from c.Context() so request_id / user_id attach automatically, and it
+// demotes expected 4xx responses to warn (5xx stays at error).
 func customErrorHandler(c fiber.Ctx, err error) error {
-	// Default to 500 Internal Server Error
 	code := fiber.StatusInternalServerError
-
-	// Check if it's a Fiber error
 	if e, ok := err.(*fiber.Error); ok {
 		code = e.Code
 	}
 
-	// Log the error
-	logger.Error().
-		Err(err).
-		Int("status_code", code).
-		Str("method", c.Method()).
-		Str("path", c.Path()).
-		Msg("Request error")
+	l := logger.FromCtx(c.Context())
+	evt := l.Error()
+	if code >= 400 && code < 500 {
+		evt = l.Warn()
+	}
+	evt.Err(err).Int("status_code", code).Msg("request_error")
 
-	// Return JSON error response
 	return c.Status(code).JSON(fiber.Map{
 		"success": false,
 		"error": fiber.Map{
