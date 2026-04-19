@@ -27,6 +27,7 @@ func newObjectsTestApp(t *testing.T) (*fiber.App, *mocks.S3Mock) {
 	app := fiber.New()
 	app.Get("/buckets/:bucket/objects", h.ListObjects)
 	app.Post("/buckets/:bucket/objects", h.UploadObject)
+	app.Post("/buckets/:bucket/directories", h.CreateDirectory)
 	app.Post("/buckets/:bucket/objects/upload-multiple", h.UploadMultipleObjects)
 	app.Post("/buckets/:bucket/objects/delete-multiple", h.DeleteMultipleObjects)
 	// Wildcard endpoints — mount under :key for tests. Handlers prefer
@@ -764,5 +765,102 @@ func TestUploadMultiple_DefaultsContentType(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("status = %d, want 201", resp.StatusCode)
+	}
+}
+
+// --- CreateDirectory ---
+
+func TestCreateDirectory_Success_AppendsTrailingSlash(t *testing.T) {
+	app, s3 := newObjectsTestApp(t)
+	var gotKey string
+	s3.CreateDirectoryMarkerFn = func(_ context.Context, bucket, key string) (*models.ObjectUploadResponse, error) {
+		gotKey = key
+		return &models.ObjectUploadResponse{Bucket: bucket, Key: key, Size: 0, ContentType: "application/x-directory"}, nil
+	}
+
+	body := bytes.NewBufferString(`{"key": "photos/2024"}`)
+	req := httptest.NewRequest(http.MethodPost, "/buckets/b1/directories", body)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d, want 201", resp.StatusCode)
+	}
+	if gotKey != "photos/2024/" {
+		t.Errorf("service key = %q, want trailing slash appended", gotKey)
+	}
+}
+
+func TestCreateDirectory_StripsLeadingSlashes(t *testing.T) {
+	app, s3 := newObjectsTestApp(t)
+	var gotKey string
+	s3.CreateDirectoryMarkerFn = func(_ context.Context, _, key string) (*models.ObjectUploadResponse, error) {
+		gotKey = key
+		return &models.ObjectUploadResponse{Key: key}, nil
+	}
+
+	body := bytes.NewBufferString(`{"key": "///already/"}`)
+	req := httptest.NewRequest(http.MethodPost, "/buckets/b1/directories", body)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d, want 201", resp.StatusCode)
+	}
+	if gotKey != "already/" {
+		t.Errorf("service key = %q, want 'already/'", gotKey)
+	}
+}
+
+func TestCreateDirectory_MissingKey400(t *testing.T) {
+	app, _ := newObjectsTestApp(t)
+	body := bytes.NewBufferString(`{"key": ""}`)
+	req := httptest.NewRequest(http.MethodPost, "/buckets/b1/directories", body)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestCreateDirectory_MalformedJSON400(t *testing.T) {
+	app, _ := newObjectsTestApp(t)
+	req := httptest.NewRequest(http.MethodPost, "/buckets/b1/directories", bytes.NewBufferString("not json"))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestCreateDirectory_ServiceError500(t *testing.T) {
+	app, s3 := newObjectsTestApp(t)
+	s3.CreateDirectoryMarkerFn = func(_ context.Context, _, _ string) (*models.ObjectUploadResponse, error) {
+		return nil, errors.New("boom")
+	}
+	body := bytes.NewBufferString(`{"key": "x/"}`)
+	req := httptest.NewRequest(http.MethodPost, "/buckets/b1/directories", body)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", resp.StatusCode)
 	}
 }

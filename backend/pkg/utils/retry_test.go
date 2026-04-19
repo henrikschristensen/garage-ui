@@ -266,3 +266,19 @@ func containsAll(s string, subs ...string) bool {
 	}
 	return true
 }
+
+func TestDefaultRetryConfig(t *testing.T) {
+	c := DefaultRetryConfig()
+	if c.MaxRetries <= 0 {
+		t.Errorf("MaxRetries = %d, want >0", c.MaxRetries)
+	}
+	if c.InitialBackoff <= 0 {
+		t.Errorf("InitialBackoff = %v, want >0", c.InitialBackoff)
+	}
+	if c.MaxBackoff < c.InitialBackoff {
+		t.Errorf("MaxBackoff (%v) should be >= InitialBackoff (%v)", c.MaxBackoff, c.InitialBackoff)
+	}
+	if c.BackoffFactor < 1.0 {
+		t.Errorf("BackoffFactor = %v, want >=1.0", c.BackoffFactor)
+	}
+}
