@@ -287,23 +287,60 @@ func (h *BucketHandler) GrantBucketPermission(c fiber.Ctx) error {
 		)
 	}
 
-	// Build the permission request for Garage Admin API
-	permRequest := models.BucketKeyPermRequest{
-		BucketID:    bucketInfo.ID,
-		AccessKeyID: req.AccessKeyID,
-		Permissions: models.BucketKeyPermission{
-			Read:  req.Permissions.Read,
-			Write: req.Permissions.Write,
-			Owner: req.Permissions.Owner,
-		},
+	// Garage's AllowBucketKey is additive — false values are no-ops, not revokes.
+	// To make this endpoint a true "set permissions" operation, split into Allow
+	// for the requested-true perms and Deny for the requested-false perms.
+	allow := models.BucketKeyPermission{
+		Read:  req.Permissions.Read,
+		Write: req.Permissions.Write,
+		Owner: req.Permissions.Owner,
+	}
+	deny := models.BucketKeyPermission{
+		Read:  !req.Permissions.Read,
+		Write: !req.Permissions.Write,
+		Owner: !req.Permissions.Owner,
 	}
 
-	// Grant permissions using Garage Admin API
-	result, err := h.adminService.AllowBucketKey(ctx, permRequest)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(
-			models.ErrorResponse(models.ErrCodeInternalError, "Failed to grant permissions: "+err.Error()),
-		)
+	var result *models.GarageBucketInfo
+
+	if allow.Read || allow.Write || allow.Owner {
+		r, err := h.adminService.AllowBucketKey(ctx, models.BucketKeyPermRequest{
+			BucketID:    bucketInfo.ID,
+			AccessKeyID: req.AccessKeyID,
+			Permissions: allow,
+		})
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(
+				models.ErrorResponse(models.ErrCodeInternalError, "Failed to grant permissions: "+err.Error()),
+			)
+		}
+		result = r
+	}
+
+	if deny.Read || deny.Write || deny.Owner {
+		r, err := h.adminService.DenyBucketKey(ctx, models.BucketKeyPermRequest{
+			BucketID:    bucketInfo.ID,
+			AccessKeyID: req.AccessKeyID,
+			Permissions: deny,
+		})
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(
+				models.ErrorResponse(models.ErrCodeInternalError, "Failed to revoke permissions: "+err.Error()),
+			)
+		}
+		result = r
+	}
+
+	if result == nil {
+		// Caller passed all-false on a key with no existing perms — nothing to do.
+		// Fetch current bucket state to return a consistent response.
+		r, err := h.adminService.GetBucketInfo(ctx, bucketInfo.ID)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(
+				models.ErrorResponse(models.ErrCodeInternalError, "Failed to fetch bucket info: "+err.Error()),
+			)
+		}
+		result = r
 	}
 
 	return c.JSON(models.SuccessResponse(result))

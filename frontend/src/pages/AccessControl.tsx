@@ -132,6 +132,7 @@ export function AccessControl() {
   const [permissionRead, setPermissionRead] = useState(false);
   const [permissionWrite, setPermissionWrite] = useState(false);
   const [permissionOwner, setPermissionOwner] = useState(false);
+  const [savingPermissions, setSavingPermissions] = useState(false);
 
   // Key settings state (activation/expiration)
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
@@ -384,6 +385,7 @@ export function AccessControl() {
       return;
     }
 
+    setSavingPermissions(true);
     try {
       // Call backend API to grant bucket permissions
       await bucketsApi.grantPermission(selectedBucket, editingKey.accessKeyId, {
@@ -405,6 +407,8 @@ export function AccessControl() {
     } catch (error) {
       // Error toast is handled by API interceptor
       console.error('Grant permission error:', error);
+    } finally {
+      setSavingPermissions(false);
     }
   };
 
@@ -1176,8 +1180,9 @@ export function AccessControl() {
             <Button variant="secondary" onClick={() => setEditPermissionsDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleGrantBucketPermission} disabled={!selectedBucket}>
-              Save permissions
+            <Button onClick={handleGrantBucketPermission} disabled={!selectedBucket || savingPermissions}>
+              {savingPermissions && <Loader2 className="h-4 w-4 animate-spin" />}
+              {savingPermissions ? 'Saving...' : 'Save permissions'}
             </Button>
           </DialogFooter>
         </DialogContent>

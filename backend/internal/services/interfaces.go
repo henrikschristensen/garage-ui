@@ -28,6 +28,7 @@ type AdminService interface {
 	UpdateBucket(ctx context.Context, bucketID string, req models.UpdateBucketRequest) (*models.GarageBucketInfo, error)
 	DeleteBucket(ctx context.Context, bucketID string) error
 	AllowBucketKey(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error)
+	DenyBucketKey(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error)
 
 	// Cluster
 	GetClusterHealth(ctx context.Context) (*models.ClusterHealth, error)

@@ -41,6 +41,7 @@ type AdminMock struct {
 	UpdateBucketFn         func(ctx context.Context, bucketID string, req models.UpdateBucketRequest) (*models.GarageBucketInfo, error)
 	DeleteBucketFn         func(ctx context.Context, bucketID string) error
 	AllowBucketKeyFn       func(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error)
+	DenyBucketKeyFn        func(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error)
 
 	// Cluster
 	GetClusterHealthFn     func(ctx context.Context) (*models.ClusterHealth, error)
@@ -166,6 +167,14 @@ func (m *AdminMock) AllowBucketKey(ctx context.Context, req models.BucketKeyPerm
 		return nil, errNotConfigured("AllowBucketKey")
 	}
 	return m.AllowBucketKeyFn(ctx, req)
+}
+
+func (m *AdminMock) DenyBucketKey(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error) {
+	m.record("DenyBucketKey", req)
+	if m.DenyBucketKeyFn == nil {
+		return nil, errNotConfigured("DenyBucketKey")
+	}
+	return m.DenyBucketKeyFn(ctx, req)
 }
 
 // --- Cluster ---

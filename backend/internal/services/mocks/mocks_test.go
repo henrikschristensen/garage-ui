@@ -38,6 +38,7 @@ func TestAdminMock_UnconfiguredMethodsReturnSentinel(t *testing.T) {
 		{"UpdateBucket", func() error { _, e := m.UpdateBucket(ctx, "b", models.UpdateBucketRequest{}); return e }},
 		{"DeleteBucket", func() error { return m.DeleteBucket(ctx, "b") }},
 		{"AllowBucketKey", func() error { _, e := m.AllowBucketKey(ctx, models.BucketKeyPermRequest{}); return e }},
+		{"DenyBucketKey", func() error { _, e := m.DenyBucketKey(ctx, models.BucketKeyPermRequest{}); return e }},
 		{"GetClusterHealth", func() error { _, e := m.GetClusterHealth(ctx); return e }},
 		{"GetClusterStatus", func() error { _, e := m.GetClusterStatus(ctx); return e }},
 		{"GetClusterStatistics", func() error { _, e := m.GetClusterStatistics(ctx); return e }},
