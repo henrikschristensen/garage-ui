@@ -531,6 +531,63 @@ func TestDoRequest_MalformedJSONReturnsDecodeError(t *testing.T) {
 	}
 }
 
+// TestAllMethods_Non2xxReturnsError exercises the decodeResponse error branch
+// of every admin method by pointing them at a server that always returns 500.
+// This is a single sweep over the near-identical "if err := decodeResponse ...
+// return nil, fmt.Errorf(...)" branches that each wrapper repeats.
+func TestAllMethods_Non2xxReturnsError(t *testing.T) {
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "boom", http.StatusInternalServerError)
+	})
+	svc, _ := newAdminTestServer(t, h)
+	ctx := context.Background()
+
+	calls := map[string]func() error{
+		"ListKeys":             func() error { _, err := svc.ListKeys(ctx); return err },
+		"CreateKey":            func() error { _, err := svc.CreateKey(ctx, models.CreateKeyRequest{}); return err },
+		"GetKeyInfo":           func() error { _, err := svc.GetKeyInfo(ctx, "k", false); return err },
+		"UpdateKey":            func() error { _, err := svc.UpdateKey(ctx, "k", models.UpdateKeyRequest{}); return err },
+		"DeleteKey":            func() error { return svc.DeleteKey(ctx, "k") },
+		"ImportKey":            func() error { _, err := svc.ImportKey(ctx, models.ImportKeyRequest{}); return err },
+		"ListBuckets":          func() error { _, err := svc.ListBuckets(ctx); return err },
+		"GetBucketInfo":        func() error { _, err := svc.GetBucketInfo(ctx, "b"); return err },
+		"GetBucketInfoByAlias": func() error { _, err := svc.GetBucketInfoByAlias(ctx, "b"); return err },
+		"CreateBucket":         func() error { _, err := svc.CreateBucket(ctx, models.CreateBucketAdminRequest{}); return err },
+		"UpdateBucket":         func() error { _, err := svc.UpdateBucket(ctx, "b", models.UpdateBucketRequest{}); return err },
+		"DeleteBucket":         func() error { return svc.DeleteBucket(ctx, "b") },
+		"AddBucketAlias":       func() error { _, err := svc.AddBucketAlias(ctx, models.AddBucketAliasRequest{}); return err },
+		"RemoveBucketAlias":    func() error { _, err := svc.RemoveBucketAlias(ctx, models.RemoveBucketAliasRequest{}); return err },
+		"AllowBucketKey":       func() error { _, err := svc.AllowBucketKey(ctx, models.BucketKeyPermRequest{}); return err },
+		"DenyBucketKey":        func() error { _, err := svc.DenyBucketKey(ctx, models.BucketKeyPermRequest{}); return err },
+		"GetClusterHealth":     func() error { _, err := svc.GetClusterHealth(ctx); return err },
+		"GetClusterStatus":     func() error { _, err := svc.GetClusterStatus(ctx); return err },
+		"GetClusterStatistics": func() error { _, err := svc.GetClusterStatistics(ctx); return err },
+		"GetNodeInfo":          func() error { _, err := svc.GetNodeInfo(ctx, "n"); return err },
+		"GetNodeStatistics":    func() error { _, err := svc.GetNodeStatistics(ctx, "n"); return err },
+		"HealthCheck":          func() error { return svc.HealthCheck(ctx) },
+	}
+
+	for name, fn := range calls {
+		t.Run(name, func(t *testing.T) {
+			if err := fn(); err == nil {
+				t.Fatalf("%s: expected error on 500, got nil", name)
+			}
+		})
+	}
+}
+
+// TestDebugLogLevelEnablesSessionLog exercises the NewGarageAdminService
+// branch that enables azuretls' session logging when logLevel == "debug".
+func TestDebugLogLevelEnablesSessionLog(t *testing.T) {
+	svc := NewGarageAdminService(&config.GarageConfig{
+		AdminEndpoint: "http://127.0.0.1:1",
+		AdminToken:    "t",
+	}, "debug")
+	if svc == nil || svc.httpClient == nil {
+		t.Fatal("expected service with configured http client")
+	}
+}
+
 func TestDoRequest_RetriesExhaustOnConnectionRefused(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

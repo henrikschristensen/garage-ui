@@ -1,0 +1,17 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 85%
+        threshold: 1%
+    patch:
+      default:
+        target: 80%
+
+ignore:
+  - "backend/main.go"
+  - "backend/docs/"
+  - "backend/internal/services/mocks/"
+  - "backend/**/*_mock.go"
+  - "backend/internal/services/s3.go"
+  - "frontend/"

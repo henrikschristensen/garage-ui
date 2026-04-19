@@ -219,6 +219,28 @@ func TestLogger_WithContext_AddsFields(t *testing.T) {
 	}
 }
 
+func TestWithError_AttachesErrorField(t *testing.T) {
+	serializeLoggerTests.Lock()
+	defer serializeLoggerTests.Unlock()
+
+	out := captureStdout(t, func() {
+		Init(Config{Level: "error", Format: "json"})
+		WithError(io.EOF).Msg("boom")
+	})
+
+	line := firstNonEmptyLine(out)
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(line), &parsed); err != nil {
+		t.Fatalf("not JSON: %v — %s", err, line)
+	}
+	if got, _ := parsed["error"].(string); got != io.EOF.Error() {
+		t.Errorf("error field = %v, want %q", parsed["error"], io.EOF.Error())
+	}
+	if got, _ := parsed["level"].(string); got != "error" {
+		t.Errorf("level = %v, want error", parsed["level"])
+	}
+}
+
 // --- helpers ---
 
 func firstNonEmptyLine(s string) string {
