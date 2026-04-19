@@ -25,6 +25,11 @@ jobs:
           cache: true
           cache-dependency-path: backend/go.sum
 
+      - name: Generate swagger docs
+        run: |
+          go install github.com/swaggo/swag/cmd/swag@latest
+          cd backend && swag init
+
       - name: Run unit tests with race detector and coverage
         run: |
           cd backend
