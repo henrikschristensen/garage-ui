@@ -149,7 +149,7 @@ test-race:
 ## test-cover: Run backend unit tests with coverage and enforce the coverage gate
 test-cover:
 	cd backend && go test -coverprofile=../coverage.out -coverpkg=./... ./...
-	./scripts/coverage-gate.sh coverage.out
+	bash scripts/coverage-gate.sh coverage.out
 
 ## test-smoke: Run the docker-compose smoke test (requires Docker + compose v2)
 test-smoke:

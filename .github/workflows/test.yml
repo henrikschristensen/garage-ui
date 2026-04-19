@@ -36,7 +36,7 @@ jobs:
           go test -race -coverprofile=../coverage.out -coverpkg=./... ./...
 
       - name: Enforce coverage gate
-        run: ./scripts/coverage-gate.sh coverage.out
+        run: bash scripts/coverage-gate.sh coverage.out
 
       - name: Upload coverage artifact
         if: always()
