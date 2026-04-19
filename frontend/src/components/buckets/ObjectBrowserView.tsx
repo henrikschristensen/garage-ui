@@ -2,7 +2,6 @@ import {useState} from 'react';
 import {useDropzone} from 'react-dropzone';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
-import {Header} from '@/components/layout/header';
 import {ObjectsTable} from './ObjectsTable';
 import {CreateDirectoryDialog} from './CreateDirectoryDialog';
 import {DeleteObjectDialog} from './DeleteObjectDialog';
@@ -170,10 +169,9 @@ export function ObjectBrowserView({
 
   return (
     <div>
-      <Header title={`Objects in ${bucketName}`} />
       <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
         {/* Back Button */}
-        <Button variant="outline" onClick={onBackToBuckets} className="text-sm sm:text-base">
+        <Button variant="secondary" onClick={onBackToBuckets} className="text-sm sm:text-base">
           <ArrowLeft className="h-4 w-4" />
           <span className="hidden sm:inline">Back to Buckets</span>
           <span className="sm:hidden">Back</span>
@@ -229,7 +227,7 @@ export function ObjectBrowserView({
               <FolderPlus className="h-4 w-4" />
               <span className="hidden sm:inline">Add Directory</span>
             </Button>
-            <Button variant="outline" size="icon" onClick={onRefresh} title="Refresh" disabled={isRefreshing}>
+            <Button variant="secondary" size="icon" onClick={onRefresh} title="Refresh" disabled={isRefreshing}>
               <RotateCwIcon className={`h-4 w-4 transition-transform duration-500 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
           </div>

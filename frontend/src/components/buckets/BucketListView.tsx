@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { FolderIcon, Globe, Loader2, MoreVertical, Plus, Search, Settings, Trash2 } from 'lucide-react';
+import { FolderIcon, Globe, Loader2, MoreVertical, Search, Settings, Trash2 } from 'lucide-react';
 import { formatBytes } from '@/lib/file-utils';
 import { formatDate } from '@/lib/utils';
 import type { Bucket } from '@/types';
@@ -21,7 +21,6 @@ interface BucketListViewProps {
   onSearchChange: (query: string) => void;
   onViewBucket: (bucketName: string) => void;
   onOpenSettings: (bucket: Bucket) => void;
-  onCreateBucket: () => void;
   onDeleteBucket: (bucket: Bucket) => void;
   onWebsiteSettings: (bucket: Bucket) => void;
 }
@@ -33,7 +32,6 @@ export function BucketListView({
   onSearchChange,
   onViewBucket,
   onOpenSettings,
-  onCreateBucket,
   onDeleteBucket,
   onWebsiteSettings,
 }: BucketListViewProps) {
@@ -44,20 +42,14 @@ export function BucketListView({
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="relative flex-1 max-w-full sm:max-w-xs">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search buckets..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-8"
-          />
-        </div>
-        <Button onClick={onCreateBucket} className="w-full sm:w-auto">
-          <Plus className="h-4 w-4" />
-          Create Bucket
-        </Button>
+      <div className="relative w-full max-w-xs">
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search buckets..."
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          className="pl-8"
+        />
       </div>
 
       {/* Buckets Table */}
@@ -99,14 +91,14 @@ export function BucketListView({
                   <TableCell className="font-medium max-w-[200px]">
                     <span className="truncate">{bucket.name}</span>
                     {bucket.websiteAccess && (
-                      <Badge variant="outline" className="text-xs ml-2">
+                      <Badge variant="neutral" className="text-xs ml-2">
                         <Globe className="h-3 w-3 mr-1" />
                         Website
                       </Badge>
                     )}
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
-                    <Badge variant="secondary">{bucket.region || 'default'}</Badge>
+                    <Badge variant="neutral">{bucket.region || 'default'}</Badge>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">{bucket.objectCount?.toLocaleString() || 0}</TableCell>
                   <TableCell>{bucket.size ? formatBytes(bucket.size) : '0 B'}</TableCell>

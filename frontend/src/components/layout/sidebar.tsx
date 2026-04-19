@@ -1,8 +1,7 @@
-import {Link, useLocation} from 'react-router-dom';
-import {cn} from '@/lib/utils';
-import {Database, Key, LayoutDashboard, LogOut, Server, User} from 'lucide-react';
-import {useAuthStore} from '@/store/auth-store';
-import {Button} from '@/components/ui/button';
+import { Link, useLocation } from 'react-router-dom';
+import { cn } from '@/lib/utils';
+import { BookOpen, Database, Key, LayoutDashboard, Server } from 'lucide-react';
+import { useAuthStore } from '@/store/auth-store';
 import { useQuery } from '@tanstack/react-query';
 import { healthApi, garageApi } from '@/lib/api';
 
@@ -12,26 +11,25 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-const navItems: NavItem[] = [
+interface NavGroup {
+  label?: string;
+  items: NavItem[];
+}
+
+const navGroups: NavGroup[] = [
   {
-    title: 'Dashboard',
-    href: '/',
-    icon: LayoutDashboard,
+    items: [{ title: 'Dashboard', href: '/', icon: LayoutDashboard }],
   },
   {
-    title: 'Buckets',
-    href: '/buckets',
-    icon: Database,
+    label: 'Storage',
+    items: [{ title: 'Buckets', href: '/buckets', icon: Database }],
   },
   {
-    title: 'Cluster',
-    href: '/cluster',
-    icon: Server,
-  },
-  {
-    title: 'Access Control',
-    href: '/access',
-    icon: Key,
+    label: 'Cluster',
+    items: [
+      { title: 'Cluster', href: '/cluster', icon: Server },
+      { title: 'Access Control', href: '/access', icon: Key },
+    ],
   },
 ];
 
@@ -42,11 +40,7 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const location = useLocation();
-  const { user, config, logout } = useAuthStore();
-
-  const handleLogout = () => {
-    logout();
-  };
+  const { config } = useAuthStore();
 
   const { data: uiVersion } = useQuery({
     queryKey: ['ui-version'],
@@ -60,80 +54,80 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     queryFn: () => garageApi.getNodeInfo('self'),
     staleTime: 5 * 60 * 1000,
     retry: false,
+    enabled: !!(config && (config.admin.enabled || config.oidc.enabled)),
   });
 
-  const garageVersion = nodeInfo
-    ? Object.values(nodeInfo.success)[0]?.garageVersion
-    : undefined;
+  const garageVersion = nodeInfo ? Object.values(nodeInfo.success)[0]?.garageVersion : undefined;
+
+  const isActive = (href: string) =>
+    href === '/'
+      ? location.pathname === '/'
+      : location.pathname === href || location.pathname.startsWith(href + '/');
 
   return (
-    <div
+    <aside
       className={cn(
-        'flex h-full w-64 flex-col border-r transition-transform duration-300 ease-in-out md:translate-x-0',
+        'flex h-full w-64 flex-col border-r border-[var(--border)] bg-[var(--background)] transition-transform duration-300 ease-in-out md:translate-x-0',
         'fixed md:static z-50',
-        isOpen ? 'translate-x-0' : '-translate-x-full'
+        isOpen ? 'translate-x-0' : '-translate-x-full',
       )}
-      style={{ backgroundColor: 'var(--background)' }}
     >
-      <div className="flex h-16 items-center border-b px-6">
-        <img src="/garage.png" alt="Garage UI Logo" className="h-8 w-8 mr-2" />
-        <span className="text-lg font-semibold">Garage UI</span>
+      <div className="flex h-16 items-center gap-2 border-b border-[var(--border)] px-4">
+        <img src="/garage.png" alt="" className="h-8 w-8" />
+        <span className="text-[18px] font-semibold tracking-tight">Garage UI</span>
       </div>
-      <nav className="flex-1 space-y-1 p-4">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = location.pathname === item.href;
-
-          return (
-            <Link
-              key={item.href}
-              to={item.href}
-              onClick={onClose}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-primary shadow-sm'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-              )}
-              style={isActive ? { backgroundColor: 'var(--primary)', color: '#000000' } : undefined}
-            >
-              <Icon className="h-5 w-5" />
-              {item.title}
-            </Link>
-          );
-        })}
-      </nav>
-      {config && (config.admin.enabled || config.oidc.enabled) && user && (
-        <div className="border-t p-4 space-y-2">
-          <div className="flex items-center gap-3 rounded-lg bg-muted px-3 py-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">
-              <User className="h-4 w-4" />
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <p className="text-sm font-medium truncate">{user.name || user.username}</p>
-              {user.email && (
-                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-              )}
-            </div>
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin">
+        {navGroups.map((group, gi) => (
+          <div key={gi}>
+            {group.label && (
+              <div className="px-2 pb-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+                {group.label}
+              </div>
+            )}
+            <ul className="space-y-0.5">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.href);
+                return (
+                  <li key={item.href}>
+                    <Link
+                      to={item.href}
+                      onClick={onClose}
+                      className={cn(
+                        'flex h-9 items-center gap-2 rounded-md px-2.5 text-[14px] transition-colors',
+                        active
+                          ? 'bg-[var(--primary)] font-medium text-[var(--primary-foreground)]'
+                          : 'text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]',
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {item.title}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full justify-start"
-            onClick={handleLogout}
-          >
-            <LogOut className="mr-2 h-4 w-4" />
-            Logout
-          </Button>
-        </div>
-      )}
-      {(uiVersion || garageVersion) && (
-        <div className="px-4 pb-3 text-xs text-muted-foreground text-center">
-          {uiVersion && `UI ${uiVersion}`}
-          {uiVersion && garageVersion && ' | '}
-          {garageVersion && `Garage ${garageVersion}`}
-        </div>
-      )}
-    </div>
+        ))}
+      </nav>
+      <div className="px-3 py-3 flex flex-col items-center gap-1.5">
+        <a
+          href="https://garagehq.deuxfleurs.fr/documentation/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12.5px] text-[var(--muted-foreground)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--foreground)]"
+        >
+          <BookOpen className="h-3.5 w-3.5" />
+          Documentation
+        </a>
+        {(uiVersion || garageVersion) && (
+          <div className="flex items-center gap-1.5 border-t border-[var(--border)] pt-2 w-full justify-center text-[12px] text-[var(--muted-foreground)]">
+            {uiVersion && <span>UI {uiVersion}</span>}
+            {uiVersion && garageVersion && <span className="opacity-40">•</span>}
+            {garageVersion && <span>Garage {garageVersion}</span>}
+          </div>
+        )}
+      </div>
+    </aside>
   );
 }

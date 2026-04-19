@@ -1,30 +1,71 @@
 @import 'tailwindcss';
 
+@font-face {
+  font-family: 'Geist Sans';
+  src: url('/fonts/geist-sans-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist Sans';
+  src: url('/fonts/geist-sans-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist Sans';
+  src: url('/fonts/geist-sans-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/geist-mono-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/geist-mono-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   :root {
-    /* Light Theme Colors */
-    --background: #ffffff;
-    --foreground: #0a0a0f;
-    --card: #ffffff;
-    --card-foreground: #0a0a0f;
-    --popover: #fafafa;
-    --popover-foreground: #0a0a0f;
+    --background: #faf7f2;
+    --foreground: #1c1917;
+    --card: #fffdf9;
+    --card-foreground: #1c1917;
+    --popover: #fffdf9;
+    --popover-foreground: #1c1917;
     --primary: #ff9447;
     --primary-foreground: #ffffff;
-    --secondary: #f4f4f5;
-    --secondary-foreground: #18181b;
-    --muted: #f4f4f5;
-    --muted-foreground: #71717a;
-    --accent: #f4f4f5;
-    --accent-foreground: #18181b;
+    --secondary: #f3efe8;
+    --secondary-foreground: #1c1917;
+    --muted: #f3efe8;
+    --muted-foreground: #78716c;
+    --accent: #f3efe8;
+    --accent-foreground: #1c1917;
     --destructive: #ef4444;
-    --destructive-foreground: #fafafa;
-    --border: #e4e4e7;
-    --input: #e4e4e7;
+    --destructive-foreground: #ffffff;
+    --border: #e7e2d8;
+    --input: #e7e2d8;
     --ring: #ff9447;
     --radius: 0.5rem;
 
-    /* Grafana Chart Colors */
+    --accent-primary-soft: rgba(255, 148, 71, 0.10);
+    --accent-primary-border: rgba(255, 148, 71, 0.22);
+    --danger-soft: rgba(239, 68, 68, 0.10);
+    --danger-border: rgba(239, 68, 68, 0.28);
+    --success-soft: rgba(34, 197, 94, 0.10);
+    --surface-sunken: rgba(120, 90, 40, 0.05);
+
     --chart-blue: #1f77b4;
     --chart-orange: #ff7f0e;
     --chart-green: #2ca02c;
@@ -38,7 +79,6 @@
   }
 
   .dark {
-    /* Dark Theme Colors - VS Code Inspired */
     --background: #1a1d29;
     --foreground: #e8eaed;
     --card: #252834;
@@ -46,7 +86,7 @@
     --popover: #2d3142;
     --popover-foreground: #e8eaed;
     --primary: #ff9447;
-    --primary-foreground: #ffffff;
+    --primary-foreground: #1a1d29;
     --secondary: #3a3f52;
     --secondary-foreground: #e8eaed;
     --muted: #4a5064;
@@ -54,12 +94,18 @@
     --accent: #3a3f52;
     --accent-foreground: #e8eaed;
     --destructive: #ef5350;
-    --destructive-foreground: #e8eaed;
+    --destructive-foreground: #1a1d29;
     --border: #3a3f52;
     --input: #3a3f52;
     --ring: #ff9447;
 
-    /* Grafana Chart Colors */
+    --accent-primary-soft: rgba(255, 148, 71, 0.12);
+    --accent-primary-border: rgba(255, 148, 71, 0.22);
+    --danger-soft: rgba(239, 83, 80, 0.14);
+    --danger-border: rgba(239, 83, 80, 0.32);
+    --success-soft: rgba(115, 191, 105, 0.10);
+    --surface-sunken: rgba(0, 0, 0, 0.18);
+
     --chart-blue: #3eb0ff;
     --chart-orange: #ff9830;
     --chart-green: #73bf69;
@@ -76,10 +122,23 @@
     border-color: var(--border);
   }
 
+  html {
+    font-family: 'Geist Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
     background-color: var(--background);
     color: var(--foreground);
-    font-feature-settings: 'rlig' 1, 'calt' 1;
+    font-feature-settings: 'rlig' 1, 'calt' 1, 'ss01' 1;
+  }
+
+  code, pre, kbd, samp, .font-mono {
+    font-family: 'Geist Mono', ui-monospace, 'SF Mono', 'Menlo', Consolas, monospace;
   }
 }
 

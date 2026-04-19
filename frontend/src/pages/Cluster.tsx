@@ -1,5 +1,5 @@
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
-import {Header} from '@/components/layout/header';
+import {PageHeader} from '@/components/ui/page-header';
 import {formatBytes} from '@/lib/file-utils';
 import {Activity, AlertCircle, CheckCircle2, Clock, Cpu, Database, Info, Network, Server, XCircle,} from 'lucide-react';
 import {useQuery} from '@tanstack/react-query';
@@ -83,7 +83,7 @@ export function Cluster() {
   if (isLoading) {
     return (
       <div>
-        <Header title="Cluster" />
+        <PageHeader title="Cluster" />
         <div className="p-4 sm:p-6 flex items-center justify-center min-h-[400px]">
           <div className="text-center">
             <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
@@ -96,7 +96,7 @@ export function Cluster() {
 
   return (
     <div>
-      <Header title="Cluster Management" />
+      <PageHeader title="Cluster management" subtitle="Node layout, partitions, and health" />
       <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
         {/* Cluster Health Overview */}
         <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -215,7 +215,7 @@ export function Cluster() {
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                                   <div>
                                     <div className="text-xs text-muted-foreground">Status</div>
-                                    <Badge variant={node.isUp ? 'default' : 'destructive'} className="mt-1">
+                                    <Badge variant={node.isUp ? 'primary' : 'danger'} className="mt-1">
                                       {nodeStatus.label}
                                     </Badge>
                                   </div>
@@ -393,7 +393,7 @@ export function Cluster() {
                                 <div className="text-xs text-muted-foreground mb-2">Garage Features</div>
                                 <div className="flex flex-wrap gap-2">
                                   {(info as LocalNodeInfo).garageFeatures!.map((feature) => (
-                                    <Badge key={feature} variant="secondary">
+                                    <Badge key={feature} variant="neutral">
                                       {feature}
                                     </Badge>
                                   ))}

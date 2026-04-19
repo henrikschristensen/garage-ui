@@ -7,6 +7,10 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Geist Sans', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'system-ui', 'sans-serif'],
+        mono: ['Geist Mono', 'ui-monospace', '"SF Mono"', 'Menlo', 'Consolas', 'monospace'],
+      },
       colors: {
         border: 'var(--border)',
         input: 'var(--input)',
@@ -16,6 +20,8 @@ export default {
         primary: {
           DEFAULT: 'var(--primary)',
           foreground: 'var(--primary-foreground)',
+          soft: 'var(--accent-primary-soft)',
+          softBorder: 'var(--accent-primary-border)',
         },
         secondary: {
           DEFAULT: 'var(--secondary)',
@@ -24,6 +30,11 @@ export default {
         destructive: {
           DEFAULT: 'var(--destructive)',
           foreground: 'var(--destructive-foreground)',
+          soft: 'var(--danger-soft)',
+          softBorder: 'var(--danger-border)',
+        },
+        success: {
+          soft: 'var(--success-soft)',
         },
         muted: {
           DEFAULT: 'var(--muted)',
@@ -41,6 +52,7 @@ export default {
           DEFAULT: 'var(--card)',
           foreground: 'var(--card-foreground)',
         },
+        sunken: 'var(--surface-sunken)',
       },
       borderRadius: {
         lg: 'var(--radius)',
