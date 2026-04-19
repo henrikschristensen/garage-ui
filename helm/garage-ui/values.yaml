@@ -77,9 +77,6 @@ config:
         - profile
       # OIDC provider endpoints
       issuer_url: "https://keycloak.example.com/realms/master"
-      auth_url: "https://keycloak.example.com/realms/master/protocol/openid-connect/auth"
-      token_url: "https://keycloak.example.com/realms/master/protocol/openid-connect/token"
-      userinfo_url: "https://keycloak.example.com/realms/master/protocol/openid-connect/userinfo"
       # Validation settings
       skip_issuer_check: false
       skip_expiry_check: false

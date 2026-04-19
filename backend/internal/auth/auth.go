@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"Noooste/garage-ui/pkg/logger"
 	"context"
 	"crypto/subtle"
 	"encoding/base64"
@@ -107,35 +108,6 @@ func (a *Service) ValidateBasicAuth(username, password string) bool {
 	return usernameMatch && passwordMatch
 }
 
-// ParseBasicAuth parses the Authorization header for basic auth
-func ParseBasicAuth(authHeader string) (username, password string, ok bool) {
-	if authHeader == "" {
-		return "", "", false
-	}
-
-	// Check if it's a Basic auth header
-	const prefix = "Basic "
-	if !strings.HasPrefix(authHeader, prefix) {
-		return "", "", false
-	}
-
-	// Decode base64 credentials
-	encoded := authHeader[len(prefix):]
-	decoded, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		return "", "", false
-	}
-
-	// Split username:password
-	credentials := string(decoded)
-	parts := strings.SplitN(credentials, ":", 2)
-	if len(parts) != 2 {
-		return "", "", false
-	}
-
-	return parts[0], parts[1], true
-}
-
 // GetAuthorizationURL returns the OIDC authorization URL for login
 func (a *Service) GetAuthorizationURL(state string) (string, error) {
 	if a.oauth2Config == nil {
@@ -212,6 +184,8 @@ func (a *Service) GetUserInfo(ctx context.Context, token *oauth2.Token) (*UserIn
 	if err := userInfoEndpoint.Claims(&claims); err != nil {
 		return nil, fmt.Errorf("failed to parse user info claims: %w", err)
 	}
+
+	logger.Debug().Interface("claims", claims).Msg("Extracted user info claims")
 
 	// Build user info
 	userInfo := &UserInfo{
