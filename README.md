@@ -49,15 +49,15 @@ cd garage-ui
 If you don't have Garage running:
 
 ```bash
-docker-compose up -d garage
+docker compose up -d garage
 sleep 10
 
 # Initialize cluster
-docker-compose exec garage garage layout assign -z dc1 -c 1G $(docker-compose exec garage garage node id -q)
-docker-compose exec garage garage layout apply --version 1
+docker compose exec garage garage layout assign -z dc1 -c 1G $(docker compose exec garage garage node id -q)
+docker compose exec garage garage layout apply --version 1
 
 # Create admin key
-docker-compose exec garage garage key create admin-key
+docker compose exec garage garage key create admin-key
 ```
 
 Save the access key and secret key from the output.
@@ -73,7 +73,7 @@ Edit `config.yaml` with your Garage endpoints and admin token (from `garage.toml
 ### 4. Start UI
 
 ```bash
-docker-compose up -d garage-ui
+docker compose up -d garage-ui
 ```
 
 Access at http://localhost:8080

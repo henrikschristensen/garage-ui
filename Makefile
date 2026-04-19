@@ -1,9 +1,9 @@
 .PHONY: help build up down restart logs clean ps health dev-build dev-up dev-down dev-restart dev-logs prod-up prod-down prod-restart prod-logs push stop
 
 # Variables
-DOCKER_COMPOSE = docker-compose
-DOCKER_COMPOSE_DEV = docker-compose -f docker-compose.dev.yml
-DOCKER_COMPOSE_PROD = docker-compose -f docker-compose.yml
+DOCKER_COMPOSE = docker compose
+DOCKER_COMPOSE_DEV = docker compose -f docker-compose.dev.yml
+DOCKER_COMPOSE_PROD = docker compose -f docker-compose.yml
 IMAGE_NAME = noooste/garage-ui
 IMAGE_TAG = latest
 
@@ -151,6 +151,6 @@ test-cover:
 	cd backend && go test -coverprofile=../coverage.out -coverpkg=./... ./...
 	bash scripts/coverage-gate.sh coverage.out
 
-## test-smoke: Run the docker-compose smoke test (requires Docker + compose v2)
+## test-smoke: Run the docker compose smoke test (requires Docker + compose v2)
 test-smoke:
 	cd backend && go test -tags=smoke -timeout 10m ./tests/smoke/...
