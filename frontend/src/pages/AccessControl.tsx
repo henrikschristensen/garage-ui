@@ -149,8 +149,6 @@ export function AccessControl() {
   const [viewingKey, setViewingKey] = useState<AccessKey | null>(null);
   const [detailsSecretKey, setDetailsSecretKey] = useState<string>('');
   const [isLoadingDetailsSecretKey, setIsLoadingDetailsSecretKey] = useState(false);
-  const [copiedAccessKeyId, setCopiedAccessKeyId] = useState(false);
-  const [copiedSecretKey, setCopiedSecretKey] = useState(false);
 
   useEffect(() => {
     const fetchKeys = async () => {
@@ -423,8 +421,6 @@ export function AccessControl() {
     setKeyDetailsDialogOpen(true);
     setDetailsSecretKey('');
     setIsLoadingDetailsSecretKey(true);
-    setCopiedAccessKeyId(false);
-    setCopiedSecretKey(false);
 
     // Fetch the secret key immediately
     try {
