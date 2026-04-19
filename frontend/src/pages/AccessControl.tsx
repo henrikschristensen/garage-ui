@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { IconTile } from '@/components/ui/icon-tile';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -814,194 +815,125 @@ export function AccessControl() {
       </Dialog>
 
       {/* Delete Key Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete API Key</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete "{selectedKey?.name}"? Applications using this key
-              will lose access immediately.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="secondary" onClick={() => setDeleteDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteKey}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title={`Delete "${selectedKey?.name ?? ''}"?`}
+        description="Applications using this key will lose access immediately."
+        confirmLabel="Delete key"
+        onConfirm={handleDeleteKey}
+      />
 
       {/* Secret Key Dialog */}
-      <Dialog open={secretKeyDialogOpen} onOpenChange={setSecretKeyDialogOpen}>
-        <DialogContent className="max-w-2xl">
+      <Dialog open={secretKeyDialogOpen} onOpenChange={setSecretKeyDialogOpen} size="form">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Secret Access Key</DialogTitle>
-            <DialogDescription>
-              Copy your secret access key now. For security reasons, it cannot be viewed again.
-            </DialogDescription>
+            <IconTile icon={<KeyRound />} tone="primary" size="md" />
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="truncate">{selectedKey?.name || 'Access key'}</DialogTitle>
+              <DialogDescription>
+                Reveal and copy this key's credentials. The secret is fetched on demand.
+              </DialogDescription>
+            </div>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Key Name</label>
-              <div className="text-sm text-muted-foreground">{selectedKey?.name}</div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Access Key ID</label>
-              <div className="flex items-center gap-2">
-                <code
-                  className="text-sm bg-muted px-3 py-2 rounded flex-1 cursor-pointer hover:bg-muted/80 transition-colors"
-                  onClick={() => {
-                    if (selectedKey?.accessKeyId) {
-                      navigator.clipboard.writeText(selectedKey.accessKeyId);
-                      toast.success('Access Key ID copied to clipboard');
-                    }
-                  }}
-                >
-                  {selectedKey?.accessKeyId}
-                </code>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    if (selectedKey?.accessKeyId) {
-                      navigator.clipboard.writeText(selectedKey.accessKeyId);
-                      toast.success('Access Key ID copied to clipboard');
-                    }
-                  }}
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Secret Access Key</label>
-              <div className="flex items-center gap-2">
-                {isLoadingSecretKey ? (
-                  <div className="flex items-center gap-2 text-muted-foreground flex-1 bg-muted px-3 py-2 rounded">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-sm">Loading secret key...</span>
-                  </div>
-                ) : (
-                  <>
-                    <code
-                      className="text-sm bg-muted px-3 py-2 rounded flex-1 break-all cursor-pointer hover:bg-muted/80 transition-colors"
-                      onClick={() => {
-                        if (revealedSecretKey) {
-                          navigator.clipboard.writeText(revealedSecretKey);
-                          toast.success('Secret Access Key copied to clipboard');
-                        }
-                      }}
-                    >
-                      {revealedSecretKey}
-                    </code>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => {
-                        if (revealedSecretKey) {
-                          navigator.clipboard.writeText(revealedSecretKey);
-                          toast.success('Secret Access Key copied to clipboard');
-                        }
-                      }}
-                      disabled={!revealedSecretKey}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
+          <DialogBody className="space-y-4">
+            <CredentialField
+              label="Access Key ID"
+              value={selectedKey?.accessKeyId || ''}
+              breakAll
+            />
+            <CredentialField
+              label="Secret Access Key"
+              value={revealedSecretKey}
+              breakAll
+              maskable
+              loading={isLoadingSecretKey}
+            />
+          </DialogBody>
           <DialogFooter>
-            <Button onClick={() => setSecretKeyDialogOpen(false)}>
-              Close
-            </Button>
+            <Button onClick={() => setSecretKeyDialogOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Key Settings Dialog */}
-      <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen}>
-        <DialogContent className="max-w-lg">
+      <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen} size="form">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Key Settings - {settingsKey?.name}</DialogTitle>
-            <DialogDescription>
-              Manage activation status and expiration date for this API key
-            </DialogDescription>
+            <IconTile icon={<ShieldCheck />} tone="primary" size="md" />
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="truncate">Key settings · {settingsKey?.name}</DialogTitle>
+              <DialogDescription>Manage activation and expiration for this access key.</DialogDescription>
+            </div>
           </DialogHeader>
-          <div className="space-y-6 py-4">
-            {/* Status */}
-            <div className="space-y-3">
-              <label className="text-sm font-medium">Status</label>
-              <div className="flex gap-4">
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="status"
-                    value="active"
-                    checked={keyStatus === 'active'}
-                    onChange={(e) => setKeyStatus(e.target.value as 'active' | 'inactive')}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm">Active</span>
-                </label>
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="status"
-                    value="inactive"
-                    checked={keyStatus === 'inactive'}
-                    onChange={(e) => setKeyStatus(e.target.value as 'active' | 'inactive')}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm">Inactive</span>
-                </label>
+          <DialogBody className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-[12px] font-medium uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                Status
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {(['active', 'inactive'] as const).map((s) => {
+                  const selected = keyStatus === s;
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setKeyStatus(s)}
+                      className={cn(
+                        'flex items-center justify-center gap-2 rounded-md border px-3 py-2.5 text-[13.5px] font-medium transition-colors',
+                        selected
+                          ? 'border-[var(--primary)] bg-[var(--accent-primary-soft)] text-[var(--foreground)]'
+                          : 'border-[var(--border)] text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]',
+                      )}
+                    >
+                      {s === 'active' ? <ShieldCheck className="h-4 w-4" /> : <ShieldX className="h-4 w-4" />}
+                      {s[0].toUpperCase() + s.slice(1)}
+                    </button>
+                  );
+                })}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Inactive keys cannot be used for authentication
+              <p className="text-[12.5px] text-[var(--muted-foreground)]">
+                Inactive keys cannot be used for authentication.
               </p>
             </div>
 
-            {/* Expiration */}
-            <div className="space-y-3">
-              <label className="text-sm font-medium">Expiration</label>
-              <div className="space-y-3">
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <Checkbox
-                    id="never-expires"
-                    checked={neverExpires}
-                    onCheckedChange={(checked) => setNeverExpires(checked as boolean)}
-                  />
-                  <span className="text-sm">Never expires</span>
-                </label>
+            <div className="space-y-3 rounded-lg border border-[var(--border)] p-4">
+              <label className="flex cursor-pointer items-start gap-3">
+                <Checkbox
+                  id="never-expires"
+                  checked={neverExpires}
+                  className="mt-0.5"
+                  onCheckedChange={(checked) => setNeverExpires(checked as boolean)}
+                />
+                <div className="flex-1">
+                  <div className="text-[13.5px] font-medium">Never expires</div>
+                  <p className="mt-0.5 text-[12.5px] text-[var(--muted-foreground)]">
+                    Turn off to set an automatic expiration date.
+                  </p>
+                </div>
+              </label>
 
-                {!neverExpires && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Expiration Date & Time</label>
-                    <Input
-                      type="datetime-local"
-                      value={expirationDate}
-                      onChange={(e) => setExpirationDate(e.target.value)}
-                      className="w-full"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Key will automatically become inactive after this date
-                    </p>
-                  </div>
-                )}
-              </div>
+              {!neverExpires && (
+                <div className="space-y-1.5 border-t border-[var(--border)] pt-4">
+                  <label className="text-[13px] font-medium">Expiration date &amp; time</label>
+                  <Input
+                    type="datetime-local"
+                    value={expirationDate}
+                    onChange={(e) => setExpirationDate(e.target.value)}
+                    className="w-full"
+                  />
+                  <p className="text-[12.5px] text-[var(--muted-foreground)]">
+                    The key will become inactive after this moment.
+                  </p>
+                </div>
+              )}
             </div>
-          </div>
+          </DialogBody>
           <DialogFooter>
             <Button variant="secondary" onClick={() => setSettingsDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveKeySettings}>
-              Save Settings
-            </Button>
+            <Button onClick={handleSaveKeySettings}>Save settings</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1119,173 +1051,133 @@ export function AccessControl() {
       </Dialog>
 
       {/* Edit Permissions Dialog */}
-      <Dialog open={editPermissionsDialogOpen} onOpenChange={setEditPermissionsDialogOpen}>
-        <DialogContent className="max-w-2xl">
+      <Dialog open={editPermissionsDialogOpen} onOpenChange={setEditPermissionsDialogOpen} size="form">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Bucket Permissions - {editingKey?.name}</DialogTitle>
-            <DialogDescription>
-              Grant this access key permissions on buckets
-            </DialogDescription>
+            <IconTile icon={<Edit />} tone="primary" size="md" />
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="truncate">Bucket permissions · {editingKey?.name}</DialogTitle>
+              <DialogDescription>
+                Select a bucket, then toggle the scopes this key should have on it.
+              </DialogDescription>
+            </div>
           </DialogHeader>
-          <div className="space-y-6 py-4">
-            {/* Bucket Selection */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Select Bucket</label>
-              <Select
-                value={selectedBucket}
-                onChange={(value) => handleBucketChange(value)}
-              >
-                <SelectOption value="">-- Select a bucket --</SelectOption>
+          <DialogBody className="space-y-5">
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-medium">Bucket</label>
+              <Select value={selectedBucket} onChange={(value) => handleBucketChange(value)}>
+                <SelectOption value="">Select a bucket…</SelectOption>
                 {availableBuckets.map((bucket) => (
                   <SelectOption key={bucket.name} value={bucket.name}>
                     {bucket.name}
                   </SelectOption>
                 ))}
               </Select>
-              <p className="text-xs text-muted-foreground">
-                Choose which bucket this key should have permissions on. Current permissions will be displayed when selected.
-              </p>
             </div>
 
-            {/* Permissions */}
-            <div className="space-y-3">
-              <label className="text-sm font-medium">Permissions</label>
-              <div className="space-y-3 border rounded-lg p-4">
-                <div className="flex items-start space-x-3">
-                  <Checkbox
-                    id="edit-permission-read"
-                    checked={permissionRead}
-                    onCheckedChange={(checked) => setPermissionRead(checked as boolean)}
-                  />
-                  <div className="flex-1">
-                    <label
-                      htmlFor="edit-permission-read"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                    >
-                      Read
-                    </label>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Allows reading objects from the bucket (GetObject, HeadObject, ListObjects)
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-3">
-                  <Checkbox
-                    id="edit-permission-write"
-                    checked={permissionWrite}
-                    onCheckedChange={(checked) => setPermissionWrite(checked as boolean)}
-                  />
-                  <div className="flex-1">
-                    <label
-                      htmlFor="edit-permission-write"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                    >
-                      Write
-                    </label>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Allows writing and deleting objects in the bucket (PutObject, DeleteObject)
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-3">
-                  <Checkbox
-                    id="edit-permission-owner"
-                    checked={permissionOwner}
-                    onCheckedChange={(checked) => setPermissionOwner(checked as boolean)}
-                  />
-                  <div className="flex-1">
-                    <label
-                      htmlFor="edit-permission-owner"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                    >
-                      Owner
-                    </label>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Allows managing bucket settings and policies (DeleteBucket, PutBucketPolicy)
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Current Permissions Info */}
-            {selectedBucket && editingKey && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Current Status</label>
-                <div className="border rounded-lg p-4 bg-muted/50">
-                  {(() => {
-                    const bucketPermission = editingKey.permissions.find(
-                      perm => perm.bucketName === selectedBucket || perm.bucketId === selectedBucket
-                    );
-
-                    if (bucketPermission) {
-                      const hasPermissions = bucketPermission.read || bucketPermission.write || bucketPermission.owner;
-                      if (hasPermissions) {
-                        return (
-                          <div className="space-y-2">
-                            <p className="text-sm font-medium text-foreground">
-                              This key currently has the following permissions on this bucket:
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {bucketPermission.read && (
-                                <Badge variant="neutral">Read</Badge>
-                              )}
-                              {bucketPermission.write && (
-                                <Badge variant="neutral">Write</Badge>
-                              )}
-                              {bucketPermission.owner && (
-                                <Badge variant="neutral">Owner</Badge>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-2">
-                              Modify the checkboxes above to update permissions
-                            </p>
-                          </div>
-                        );
-                      }
-                    }
-                    return (
-                      <p className="text-sm text-muted-foreground">
-                        This key has no permissions on this bucket yet. Select permissions above to grant access.
-                      </p>
-                    );
-                  })()}
-                </div>
-              </div>
-            )}
-
-            {/* Current Bucket Permissions List */}
-            {editingKey && editingKey.permissions.length > 0 && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Current Bucket Permissions</label>
-                <div className="border rounded-lg p-4 max-h-48 overflow-y-auto">
-                  <div className="space-y-2">
-                    {editingKey.permissions.map((perm, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-sm p-2 bg-muted/30 rounded">
-                        <span className="font-medium">{perm.bucketName}</span>
-                        <div className="flex gap-1">
-                          {perm.read && <Badge variant="neutral" className="text-xs">R</Badge>}
-                          {perm.write && <Badge variant="neutral" className="text-xs">W</Badge>}
-                          {perm.owner && <Badge variant="neutral" className="text-xs">O</Badge>}
+            {selectedBucket && (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-medium">Permissions</label>
+                  <div className="divide-y divide-[var(--border)] rounded-md border border-[var(--border)]">
+                    {[
+                      {
+                        id: 'edit-permission-read',
+                        label: 'Read',
+                        desc: 'GetObject, HeadObject, ListObjects',
+                        checked: permissionRead,
+                        setChecked: setPermissionRead,
+                      },
+                      {
+                        id: 'edit-permission-write',
+                        label: 'Write',
+                        desc: 'PutObject, DeleteObject',
+                        checked: permissionWrite,
+                        setChecked: setPermissionWrite,
+                      },
+                      {
+                        id: 'edit-permission-owner',
+                        label: 'Owner',
+                        desc: 'DeleteBucket, PutBucketPolicy',
+                        checked: permissionOwner,
+                        setChecked: setPermissionOwner,
+                      },
+                    ].map((p) => (
+                      <label
+                        key={p.id}
+                        htmlFor={p.id}
+                        className="flex cursor-pointer items-start gap-3 px-3.5 py-3 transition-colors hover:bg-[var(--accent)]"
+                      >
+                        <Checkbox
+                          id={p.id}
+                          checked={p.checked}
+                          className="mt-0.5"
+                          onCheckedChange={(checked) => p.setChecked(checked as boolean)}
+                        />
+                        <div className="flex-1">
+                          <div className="text-[13.5px] font-medium">{p.label}</div>
+                          <p className="mt-0.5 font-mono text-[12px] text-[var(--muted-foreground)]">
+                            {p.desc}
+                          </p>
                         </div>
-                      </div>
+                      </label>
                     ))}
                   </div>
                 </div>
+
+                {editingKey && (() => {
+                  const current = editingKey.permissions.find(
+                    (perm) => perm.bucketName === selectedBucket || perm.bucketId === selectedBucket,
+                  );
+                  const hasAny = current && (current.read || current.write || current.owner);
+                  return (
+                    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-sunken)] px-3.5 py-3">
+                      <div className="text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                        Currently granted
+                      </div>
+                      {hasAny ? (
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {current!.read && <Badge variant="neutral">Read</Badge>}
+                          {current!.write && <Badge variant="neutral">Write</Badge>}
+                          {current!.owner && <Badge variant="warning">Owner</Badge>}
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-[12.5px] text-[var(--muted-foreground)]">
+                          No permissions on this bucket yet.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+
+            {editingKey && editingKey.permissions.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-[12px] font-medium uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                  All bucket permissions for this key
+                </label>
+                <div className="max-h-48 divide-y divide-[var(--border)] overflow-y-auto rounded-md border border-[var(--border)]">
+                  {editingKey.permissions.map((perm, idx) => (
+                    <div key={idx} className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                      <span className="truncate font-mono text-[13px]">{perm.bucketName}</span>
+                      <div className="flex flex-shrink-0 gap-1">
+                        {perm.read && <Badge variant="neutral">R</Badge>}
+                        {perm.write && <Badge variant="neutral">W</Badge>}
+                        {perm.owner && <Badge variant="warning">O</Badge>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
-          </div>
+          </DialogBody>
           <DialogFooter>
             <Button variant="secondary" onClick={() => setEditPermissionsDialogOpen(false)}>
               Cancel
             </Button>
-            <Button
-              onClick={handleGrantBucketPermission}
-              disabled={!selectedBucket}
-            >
-              Grant Permission
+            <Button onClick={handleGrantBucketPermission} disabled={!selectedBucket}>
+              Save permissions
             </Button>
           </DialogFooter>
         </DialogContent>
