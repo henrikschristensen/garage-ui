@@ -72,64 +72,38 @@ func SetupRoutes(
 		objects.Post("/delete-multiple", objectHandler.DeleteMultipleObjects) // Delete multiple objects
 	}
 
-	// Object-specific routes with wildcard key parameter (supports paths with slashes)
-	// These need to be registered on the main app with auth middleware applied
+	// Fiber v3 does not auto-decode wildcard params; fall back to the raw
+	// value when QueryUnescape fails.
+	decodeObjectKey := func(c fiber.Ctx) string {
+		raw := c.Params("*")
+		if decoded, err := url.QueryUnescape(raw); err == nil {
+			return decoded
+		}
+		return raw
+	}
+
 	objectWildcardHandler := func(c fiber.Ctx) error {
-		// Get the full path from wildcard parameter
-		// Note: Fiber v3 does NOT automatically decode params, we need to do it manually
-		path := c.Params("*")
-
-		// Decode the full path using QueryUnescape (handles %20, %2F, etc.)
-		decodedPath, err := url.QueryUnescape(path)
-		if err != nil {
-			// If decoding fails, use the original path
-			decodedPath = path
-		}
-
-		// Check if it's a metadata request
-		if strings.HasSuffix(decodedPath, "/metadata") {
-			// Remove /metadata suffix to get the actual key
-			key := strings.TrimSuffix(decodedPath, "/metadata")
-			c.Locals("objectKey", key)
+		path := decodeObjectKey(c)
+		switch {
+		case strings.HasSuffix(path, "/metadata"):
+			c.Locals("objectKey", strings.TrimSuffix(path, "/metadata"))
 			return objectHandler.GetObjectMetadata(c)
-		}
-		// Check if it's a presign request
-		if strings.HasSuffix(decodedPath, "/presign") {
-			// Remove /presign suffix to get the actual key
-			key := strings.TrimSuffix(decodedPath, "/presign")
-			c.Locals("objectKey", key)
+		case strings.HasSuffix(path, "/presign"):
+			c.Locals("objectKey", strings.TrimSuffix(path, "/presign"))
 			return objectHandler.GetPresignedURL(c)
+		default:
+			c.Locals("objectKey", path)
+			return objectHandler.GetObject(c)
 		}
-		// Otherwise, it's a regular object download
-		c.Locals("objectKey", decodedPath)
-		return objectHandler.GetObject(c)
 	}
 
 	objectDeleteHandler := func(c fiber.Ctx) error {
-		path := c.Params("*")
-
-		// Decode the full path using QueryUnescape
-		key, err := url.QueryUnescape(path)
-		if err != nil {
-			// If decoding fails, use the original path
-			key = path
-		}
-
-		c.Locals("objectKey", key)
+		c.Locals("objectKey", decodeObjectKey(c))
 		return objectHandler.DeleteObject(c)
 	}
 
 	objectHeadHandler := func(c fiber.Ctx) error {
-		path := c.Params("*")
-
-		// Decode the full path using QueryUnescape
-		key, err := url.QueryUnescape(path)
-		if err != nil {
-			// If decoding fails, use the original path
-			key = path
-		}
-
-		c.Locals("objectKey", key)
+		c.Locals("objectKey", decodeObjectKey(c))
 		return objectHandler.GetObjectMetadata(c)
 	}
 
@@ -226,6 +200,11 @@ func SetupRoutes(
 					})
 				}
 
+				logger.Debug().
+					Str("access_token", token.AccessToken).
+					Interface("token", token).
+					Msg("Exchanged authorization code for token")
+
 				// Extract ID token from OAuth2 token
 				rawIDToken, ok := token.Extra("id_token").(string)
 				if !ok {
@@ -253,10 +232,8 @@ func SetupRoutes(
 						}
 					}
 					if !authService.IsAdmin(userInfo) {
-						if uiFromUserinfo, uiErr := authService.GetUserInfo(ctx, token); uiErr == nil {
-							if len(uiFromUserinfo.Roles) > 0 {
-								userInfo.Roles = uiFromUserinfo.Roles
-							}
+						if ui, err := authService.GetUserInfo(ctx, token); err == nil && len(ui.Roles) > 0 {
+							userInfo.Roles = ui.Roles
 						}
 					}
 					if !authService.IsAdmin(userInfo) {

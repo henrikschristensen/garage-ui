@@ -138,13 +138,6 @@ type BucketPermission struct {
 	Owner      bool   `json:"owner"`
 }
 
-// Permission represents a permission entry for access control (legacy/deprecated)
-type Permission struct {
-	Resource string   `json:"resource"`
-	Actions  []string `json:"actions"`
-	Effect   string   `json:"effect"` // "Allow" or "Deny"
-}
-
 type PresignedURLResponse struct {
 	URL       string `json:"url"`
 	ExpiresIn int64  `json:"expires_in"` // in seconds

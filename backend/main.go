@@ -140,7 +140,7 @@ func main() {
 
 	// Create Fiber app with configuration
 	app := fiber.New(fiber.Config{
-		AppName:         "Garage UI Backend v" + version,
+		AppName:         "Garage UI Backend | Version: " + version,
 		BodyLimit:       int(maxBodySize),
 		ReadBufferSize:  readBufferSize,
 		WriteBufferSize: writeBufferSize,
