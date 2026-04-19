@@ -54,10 +54,12 @@ dist-ssr
 .env*
 !config.yaml.example
 docker-compose.*.yml
+!backend/tests/smoke/docker-compose.test.yml
 
 data/
 meta/
 garage.toml
+!backend/tests/smoke/garage.toml
 
 backend/docs/
 config.yaml
