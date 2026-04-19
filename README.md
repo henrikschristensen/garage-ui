@@ -186,6 +186,51 @@ logging:
   format: "text"  # or "json"
 ```
 
+## Roadmap
+
+Ideas being considered. Contributions welcome.
+
+**Object browser**
+- [ ] Inline preview (images, PDF, video, text/markdown, code)
+- [ ] Resumable multipart uploads with pause/resume
+- [ ] Folder uploads preserving prefix structure
+- [ ] Bulk actions (delete, copy prefix, download prefix as zip)
+- [ ] Command palette (Cmd-K) and keyboard navigation
+
+**Sharing**
+- [ ] Presigned download links with expiry + QR code
+- [ ] Presigned upload drop-zones ("send me a file" pages)
+
+**Buckets**
+- [ ] Bucket alias manager (global vs. user-scoped)
+- [ ] Quota editor with live usage bar
+- [ ] Lifecycle editor (expiration + abort-multipart)
+- [ ] CORS editor with built-in test request
+- [ ] Website config (index/error docs) with live link
+- [ ] Per-bucket usage graph over time
+
+**Access keys**
+- [ ] Permission matrix view (keys × buckets)
+- [ ] Key rotation helper
+- [ ] Copy-ready snippets per key (aws-cli, rclone, restic, s3cmd, mc, Terraform)
+
+**Cluster**
+- [ ] Visual layout editor with staged vs. applied diff
+- [ ] Capacity planner / simulation
+- [ ] Rebalance progress and node health timeline
+- [ ] Worker/repair panel (trigger scrub, repair, rebalance)
+
+**Observability**
+- [ ] Dashboard with dedup/compression savings
+- [ ] Metrics explorer pulling from Garage `/metrics`
+- [ ] Admin audit log
+
+**Polish**
+- [ ] i18n (FR/EN)
+- [ ] Mobile-friendly object browser
+- [ ] First-run onboarding wizard
+- [ ] GitOps export (layout + buckets + keys as YAML)
+
 ## License
 
 MIT - see [LICENSE](LICENSE)
