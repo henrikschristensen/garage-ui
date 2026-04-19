@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -47,6 +48,15 @@ func IsConnectionRefused(err error) bool {
 
 	// Also check for "connection refused" in error message as fallback
 	if errors.Is(err, syscall.ECONNREFUSED) {
+		return true
+	}
+
+	// Some HTTP clients (e.g. azuretls) collapse the syscall error into a
+	// plain string before returning. Fall back to substring matching so the
+	// retry path still triggers for those wrappers. "connectex" is the
+	// Windows variant emitted by the Go runtime.
+	msg := err.Error()
+	if strings.Contains(msg, "connection refused") || strings.Contains(msg, "actively refused") {
 		return true
 	}
 

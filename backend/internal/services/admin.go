@@ -4,11 +4,13 @@ import (
 	"Noooste/garage-ui/internal/config"
 	"Noooste/garage-ui/internal/models"
 	"Noooste/garage-ui/pkg/utils"
+	logpkg "Noooste/garage-ui/pkg/logger"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/Noooste/azuretls-client"
 )
@@ -177,100 +179,177 @@ func (s *GarageAdminService) ImportKey(ctx context.Context, req models.ImportKey
 	return &result, nil
 }
 
-// ListBuckets returns all buckets in the cluster
+// ListBuckets returns all buckets in the cluster.
 func (s *GarageAdminService) ListBuckets(ctx context.Context) ([]models.ListBucketsResponseItem, error) {
+	log := logpkg.FromCtx(ctx).With().
+		Str("component", "admin").
+		Str("operation", "list_buckets").
+		Logger()
+
+	log.Debug().Msg("listing buckets")
+	start := time.Now()
+
 	resp, err := s.doRequest(ctx, http.MethodGet, "/v2/ListBuckets", nil)
 	if err != nil {
+		log.Error().Err(err).
+			Float64("duration_ms", msSince(start)).
+			Str("outcome", "failure").
+			Msg("garage list_buckets request failed")
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 
 	var result []models.ListBucketsResponseItem
 	if err := decodeResponse(resp, &result); err != nil {
+		log.Error().Err(err).
+			Float64("duration_ms", msSince(start)).
+			Str("outcome", "failure").
+			Msg("garage list_buckets decode failed")
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
+	log.Debug().
+		Float64("duration_ms", msSince(start)).
+		Str("outcome", "success").
+		Int("count", len(result)).
+		Msg("listed buckets")
 	return result, nil
 }
 
-// GetBucketInfo returns detailed information about a bucket by ID
+// GetBucketInfo returns detailed information about a bucket by ID.
 func (s *GarageAdminService) GetBucketInfo(ctx context.Context, bucketID string) (*models.GarageBucketInfo, error) {
-	path := fmt.Sprintf("/v2/GetBucketInfo?id=%s", bucketID)
+	log := logpkg.FromCtx(ctx).With().
+		Str("component", "admin").
+		Str("operation", "get_bucket_info").
+		Str("bucket_id", bucketID).
+		Logger()
 
-	resp, err := s.doRequest(ctx, http.MethodGet, path, nil)
+	log.Debug().Msg("getting bucket info")
+	start := time.Now()
+
+	resp, err := s.doRequest(ctx, http.MethodGet, fmt.Sprintf("/v2/GetBucketInfo?id=%s", bucketID), nil)
 	if err != nil {
+		log.Error().Err(err).Float64("duration_ms", msSince(start)).Str("outcome", "failure").Msg("garage get_bucket_info request failed")
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 
 	var result models.GarageBucketInfo
 	if err := decodeResponse(resp, &result); err != nil {
+		log.Error().Err(err).Float64("duration_ms", msSince(start)).Str("outcome", "failure").Msg("garage get_bucket_info decode failed")
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
+	log.Debug().Float64("duration_ms", msSince(start)).Str("outcome", "success").Msg("got bucket info")
 	return &result, nil
 }
 
-// GetBucketInfoByAlias returns detailed information about a bucket by its global alias
+// GetBucketInfoByAlias returns detailed information about a bucket by its global alias.
 func (s *GarageAdminService) GetBucketInfoByAlias(ctx context.Context, globalAlias string) (*models.GarageBucketInfo, error) {
-	path := fmt.Sprintf("/v2/GetBucketInfo?globalAlias=%s", globalAlias)
+	log := logpkg.FromCtx(ctx).With().
+		Str("component", "admin").
+		Str("operation", "get_bucket_info_by_alias").
+		Str("bucket", globalAlias).
+		Logger()
 
-	resp, err := s.doRequest(ctx, http.MethodGet, path, nil)
+	log.Debug().Msg("getting bucket info by alias")
+	start := time.Now()
+
+	resp, err := s.doRequest(ctx, http.MethodGet, fmt.Sprintf("/v2/GetBucketInfo?globalAlias=%s", globalAlias), nil)
 	if err != nil {
+		log.Error().Err(err).Float64("duration_ms", msSince(start)).Str("outcome", "failure").Msg("garage get_bucket_info_by_alias request failed")
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 
 	var result models.GarageBucketInfo
 	if err = decodeResponse(resp, &result); err != nil {
+		log.Error().Err(err).Float64("duration_ms", msSince(start)).Str("outcome", "failure").Msg("garage get_bucket_info_by_alias decode failed")
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
+	log.Debug().Float64("duration_ms", msSince(start)).Str("outcome", "success").Str("bucket_id", result.ID).Msg("got bucket info by alias")
 	return &result, nil
 }
 
-// CreateBucket creates a new bucket via the Admin API
+// CreateBucket creates a new bucket via the Admin API.
 func (s *GarageAdminService) CreateBucket(ctx context.Context, req models.CreateBucketAdminRequest) (*models.GarageBucketInfo, error) {
+	var alias string
+	if req.GlobalAlias != nil {
+		alias = *req.GlobalAlias
+	}
+	log := logpkg.FromCtx(ctx).With().
+		Str("component", "admin").
+		Str("operation", "create_bucket").
+		Str("bucket", alias).
+		Logger()
+
+	log.Info().Msg("creating bucket")
+	start := time.Now()
+
 	resp, err := s.doRequest(ctx, http.MethodPost, "/v2/CreateBucket", req)
 	if err != nil {
+		log.Error().Err(err).Float64("duration_ms", msSince(start)).Str("outcome", "failure").Msg("garage create_bucket request failed")
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 
 	var result models.GarageBucketInfo
 	if err := decodeResponse(resp, &result); err != nil {
+		log.Error().Err(err).Float64("duration_ms", msSince(start)).Str("outcome", "failure").Msg("garage create_bucket decode failed")
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
+	log.Info().Float64("duration_ms", msSince(start)).Str("outcome", "success").Str("bucket_id", result.ID).Msg("bucket created")
 	return &result, nil
 }
 
-// UpdateBucket updates bucket settings
+// UpdateBucket updates bucket settings.
 func (s *GarageAdminService) UpdateBucket(ctx context.Context, bucketID string, req models.UpdateBucketRequest) (*models.GarageBucketInfo, error) {
-	path := fmt.Sprintf("/v2/UpdateBucket?id=%s", bucketID)
+	log := logpkg.FromCtx(ctx).With().
+		Str("component", "admin").
+		Str("operation", "update_bucket").
+		Str("bucket_id", bucketID).
+		Logger()
 
-	resp, err := s.doRequest(ctx, http.MethodPost, path, req)
+	log.Info().Msg("updating bucket")
+	start := time.Now()
+
+	resp, err := s.doRequest(ctx, http.MethodPost, fmt.Sprintf("/v2/UpdateBucket?id=%s", bucketID), req)
 	if err != nil {
+		log.Error().Err(err).Float64("duration_ms", msSince(start)).Str("outcome", "failure").Msg("garage update_bucket request failed")
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 
 	var result models.GarageBucketInfo
 	if err := decodeResponse(resp, &result); err != nil {
+		log.Error().Err(err).Float64("duration_ms", msSince(start)).Str("outcome", "failure").Msg("garage update_bucket decode failed")
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
+	log.Info().Float64("duration_ms", msSince(start)).Str("outcome", "success").Msg("bucket updated")
 	return &result, nil
 }
 
-// DeleteBucket deletes a bucket
+// DeleteBucket deletes a bucket.
 func (s *GarageAdminService) DeleteBucket(ctx context.Context, bucketID string) error {
-	path := fmt.Sprintf("/v2/DeleteBucket?id=%s", bucketID)
+	log := logpkg.FromCtx(ctx).With().
+		Str("component", "admin").
+		Str("operation", "delete_bucket").
+		Str("bucket_id", bucketID).
+		Logger()
 
-	resp, err := s.doRequest(ctx, http.MethodPost, path, nil)
+	log.Info().Msg("deleting bucket")
+	start := time.Now()
+
+	resp, err := s.doRequest(ctx, http.MethodPost, fmt.Sprintf("/v2/DeleteBucket?id=%s", bucketID), nil)
 	if err != nil {
+		log.Error().Err(err).Float64("duration_ms", msSince(start)).Str("outcome", "failure").Msg("garage delete_bucket request failed")
 		return fmt.Errorf("request failed: %w", err)
 	}
 
 	if err := decodeResponse(resp, nil); err != nil {
+		log.Error().Err(err).Float64("duration_ms", msSince(start)).Str("outcome", "failure").Msg("garage delete_bucket decode failed")
 		return fmt.Errorf("failed to process response: %w", err)
 	}
 
+	log.Info().Float64("duration_ms", msSince(start)).Str("outcome", "success").Msg("bucket deleted")
 	return nil
 }
 
@@ -304,18 +383,34 @@ func (s *GarageAdminService) RemoveBucketAlias(ctx context.Context, req models.R
 	return &result, nil
 }
 
-// AllowBucketKey grants permissions for a key on a bucket
+// AllowBucketKey grants permissions for a key on a bucket.
 func (s *GarageAdminService) AllowBucketKey(ctx context.Context, req models.BucketKeyPermRequest) (*models.GarageBucketInfo, error) {
+	log := logpkg.FromCtx(ctx).With().
+		Str("component", "admin").
+		Str("operation", "allow_bucket_key").
+		Str("bucket_id", req.BucketID).
+		Str("access_key_id", logpkg.RedactKey(req.AccessKeyID)).
+		Bool("perm_read", req.Permissions.Read).
+		Bool("perm_write", req.Permissions.Write).
+		Bool("perm_owner", req.Permissions.Owner).
+		Logger()
+
+	log.Info().Msg("granting bucket key permissions")
+	start := time.Now()
+
 	resp, err := s.doRequest(ctx, http.MethodPost, "/v2/AllowBucketKey", req)
 	if err != nil {
+		log.Error().Err(err).Float64("duration_ms", msSince(start)).Str("outcome", "failure").Msg("garage allow_bucket_key request failed")
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 
 	var result models.GarageBucketInfo
 	if err := decodeResponse(resp, &result); err != nil {
+		log.Error().Err(err).Float64("duration_ms", msSince(start)).Str("outcome", "failure").Msg("garage allow_bucket_key decode failed")
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
+	log.Info().Float64("duration_ms", msSince(start)).Str("outcome", "success").Msg("bucket key permissions granted")
 	return &result, nil
 }
 
@@ -425,6 +520,11 @@ func (s *GarageAdminService) HealthCheck(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// msSince returns duration since t in milliseconds as a float64.
+func msSince(t time.Time) float64 {
+	return float64(time.Since(t).Microseconds()) / 1000.0
 }
 
 // GetMetrics returns Prometheus metrics from the Admin API
