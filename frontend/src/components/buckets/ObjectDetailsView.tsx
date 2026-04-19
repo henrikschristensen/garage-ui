@@ -87,7 +87,7 @@ export function ObjectDetailsView() {
       document.body.removeChild(a);
       toast.success('Download started');
     } catch {
-      toast.error('Download failed');
+      // error toast handled by axios interceptor
     }
   };
 
@@ -99,7 +99,7 @@ export function ObjectDetailsView() {
       toast.success('Object deleted');
       navigate(backHref);
     } catch {
-      toast.error('Delete failed');
+      // error toast handled by axios interceptor
     } finally {
       setDeleting(false);
       setDeleteOpen(false);

@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { DangerousConfirmDialog } from '@/components/ui/dangerous-confirm-dialog';
-import { toast } from 'sonner';
 import { formatBytes } from '@/lib/file-utils';
 import { formatDate as formatDateUtil } from '@/lib/utils';
 
@@ -44,8 +43,7 @@ export function BucketSettings() {
     try {
       await deleteMutation.mutateAsync(bucket.name);
       navigate('/buckets');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Delete failed');
+    } catch {
       setDeleting(false);
     }
   };

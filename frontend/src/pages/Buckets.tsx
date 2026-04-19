@@ -8,7 +8,6 @@ import { DangerousConfirmDialog } from '@/components/ui/dangerous-confirm-dialog
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import type { Bucket } from '@/types';
-import { toast } from 'sonner';
 
 export function Buckets() {
   const navigate = useNavigate();
@@ -24,10 +23,8 @@ export function Buckets() {
   const createBucket = async (name: string, region?: string) => {
     try {
       await createMutation.mutateAsync({ name, region });
-      toast.success(`Bucket "${name}" created`);
       return true;
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Create failed');
+    } catch {
       return false;
     }
   };
@@ -38,8 +35,8 @@ export function Buckets() {
     try {
       await deleteMutation.mutateAsync(deleteTarget.name);
       setDeleteTarget(null);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Delete failed');
+    } catch {
+      // error toast handled by axios interceptor
     } finally {
       setDeleting(false);
     }

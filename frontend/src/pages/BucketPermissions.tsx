@@ -44,10 +44,9 @@ export function BucketPermissions() {
         accessKeyId: selectedKey,
         permissions: { read, write, owner },
       });
-      toast.success('Permissions granted');
       setSelectedKey(''); setRead(false); setWrite(false); setOwner(false);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Grant failed');
+    } catch {
+      // error toast handled by axios interceptor
     }
   };
 

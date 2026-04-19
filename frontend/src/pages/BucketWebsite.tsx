@@ -65,8 +65,8 @@ export function BucketWebsite() {
       });
       await queryClient.invalidateQueries({ queryKey: ['buckets'] });
       toast.success(disabling ? 'Website disabled' : 'Website configuration updated');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Save failed');
+    } catch {
+      // error toast handled by axios interceptor
     } finally {
       setSaving(false);
     }
