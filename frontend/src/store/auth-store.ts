@@ -98,8 +98,11 @@ export const useAuthStore = create<AuthStore>()(
             isLoading: false,
             error: null
           });
-        } catch (error: any) {
-          const errorMessage = error.response?.data?.error?.message || 'Login failed';
+        } catch (error) {
+          const errorMessage =
+            (error as { response?: { data?: { error?: { message?: string } } } })
+              .response?.data?.error?.message ||
+            (error instanceof Error ? error.message : 'Login failed');
           set({
             error: errorMessage,
             isLoading: false,

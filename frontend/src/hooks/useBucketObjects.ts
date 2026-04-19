@@ -90,10 +90,7 @@ export function useBucketObjects(bucketName: string | null, currentPath: string 
 
     setUploadTasks(tasks);
 
-    let successCount = 0;
-    let errorCount = 0;
-
-    for (const task of tasks) {
+    const results = await Promise.all(tasks.map(async (task) => {
       try {
         setUploadTasks(prev => prev.map(t =>
           t.id === task.id ? { ...t, status: 'uploading' as const } : t
@@ -109,16 +106,19 @@ export function useBucketObjects(bucketName: string | null, currentPath: string 
         setUploadTasks(prev => prev.map(t =>
           t.id === task.id ? { ...t, status: 'completed' as const, progress: 100 } : t
         ));
-        successCount++;
+        return true;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Upload failed';
         setUploadTasks(prev => prev.map(t =>
           t.id === task.id ? { ...t, status: 'error' as const, error: errorMessage } : t
         ));
-        errorCount++;
         console.error(`Failed to upload ${task.key}:`, error);
+        return false;
       }
-    }
+    }));
+
+    const successCount = results.filter(Boolean).length;
+    const errorCount = results.length - successCount;
 
     if (errorCount === 0) {
       if (hasRelativePaths && folders.size > 0) {

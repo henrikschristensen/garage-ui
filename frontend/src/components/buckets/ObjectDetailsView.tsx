@@ -9,16 +9,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { ArrowLeft, ChevronRight, Copy, Download, File, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatBytes } from '@/lib/file-utils';
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+import { formatDate } from '@/lib/utils';
 
 function CardSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (

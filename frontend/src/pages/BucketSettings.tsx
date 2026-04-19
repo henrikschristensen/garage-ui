@@ -7,27 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { DangerousConfirmDialog } from '@/components/ui/dangerous-confirm-dialog';
 import { toast } from 'sonner';
+import { formatBytes } from '@/lib/file-utils';
+import { formatDate as formatDateUtil } from '@/lib/utils';
 
-function formatBytes(n?: number) {
-  if (n == null) return '—';
-  if (n < 1024) return `${n} B`;
-  const units = ['KB', 'MB', 'GB', 'TB'];
-  let v = n / 1024;
-  for (const u of units) {
-    if (v < 1024) return `${v.toFixed(v >= 10 ? 0 : 1)} ${u}`;
-    v /= 1024;
-  }
-  return `${v.toFixed(0)} PB`;
-}
-
-function formatDate(iso?: string) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
-  }
-}
+const formatBytesOrDash = (n?: number) => (n == null ? '—' : formatBytes(n));
+const formatDateOrDash = (iso?: string) => (iso ? formatDateUtil(iso) : '—');
 
 export function BucketSettings() {
   const { bucketName = '' } = useParams<{ bucketName: string }>();
@@ -78,9 +62,9 @@ export function BucketSettings() {
         <dl className="grid grid-cols-1 gap-x-6 gap-y-4 px-5 py-5 sm:grid-cols-2">
           <Field label="Name" value={<span className="font-mono text-[13.5px]">{bucket.name}</span>} />
           <Field label="Region" value={bucket.region ?? '—'} />
-          <Field label="Created" value={formatDate(bucket.creationDate)} />
+          <Field label="Created" value={formatDateOrDash(bucket.creationDate)} />
           <Field label="Objects" value={bucket.objectCount != null ? bucket.objectCount.toLocaleString() : '—'} />
-          <Field label="Size" value={formatBytes(bucket.size)} />
+          <Field label="Size" value={formatBytesOrDash(bucket.size)} />
           <Field
             label="Website"
             value={
