@@ -7,7 +7,7 @@
   <a href="https://artifacthub.io/packages/search?repo=garage-ui"><img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/garage-ui" alt="Artifact Hub" /></a>
 </p>
 
-# Garage UI — Web Dashboard for Garage S3 Storage
+# Garage UI - Web Dashboard for Garage S3 Storage
 
 A modern web interface to manage <a href="https://garagehq.deuxfleurs.fr/">Garage</a> object storage clusters. Browse buckets, manage access keys, monitor your cluster, all from your browser.
 
@@ -26,18 +26,18 @@ A modern web interface to manage <a href="https://garagehq.deuxfleurs.fr/">Garag
 
 ## Features
 
-- **Bucket management** — create, configure, and browse buckets with drag-and-drop file uploads
-- **Access key management** — create keys, assign per-bucket permissions
-- **Cluster overview** — monitor node status, layout configuration, and storage usage
-- **Flexible authentication** — no auth, basic credentials, or OIDC (Keycloak, Authentik, etc.)
-- **Easy deployment** — single Docker image or Helm chart, configure with one YAML file
+- **Bucket management** - create, configure, and browse buckets with drag-and-drop file uploads
+- **Access key management** - create keys, assign per-bucket permissions
+- **Cluster overview** - monitor node status, layout configuration, and storage usage
+- **Flexible authentication** - no auth, basic credentials, or OIDC (Keycloak, Authentik, etc.)
+- **Easy deployment** - single Docker image or Helm chart, configure with one YAML file
 
 ## Quick Start
 
 ### Prerequisites
 
 - Docker & Docker Compose
-- A running Garage cluster (v2.1.0+) — [setup guide](docs/garage-setup.md) if you need one
+- A running Garage cluster (v2.1.0+) - [setup guide](docs/garage-setup.md) if you need one
 
 ### 1. Clone & Configure
 
