@@ -133,6 +133,7 @@ export const authApi = {
     const response = await authApiClient.get<{
       admin: { enabled: boolean };
       oidc: { enabled: boolean; provider?: string };
+      token: { enabled: boolean };
     }>('/config');
     return response;
   },
@@ -141,6 +142,13 @@ export const authApi = {
     const response = await authApiClient.post<{ success: boolean; token: string; user: AuthUser }>('/login', {
       username,
       password,
+    });
+    return response;
+  },
+
+  loginToken: async (token: string) => {
+    const response = await authApiClient.post<{ success: boolean; token: string; user: AuthUser }>('/login-token', {
+      token,
     });
     return response;
   },
