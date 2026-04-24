@@ -231,6 +231,7 @@ Ideas being considered. Contributions welcome.
 - [ ] Copy-ready snippets per key (aws-cli, rclone, restic, s3cmd, mc, Terraform)
 
 **Cluster**
+- [X] Support Garage v1 to latest
 - [ ] Visual layout editor with staged vs. applied diff
 - [ ] Capacity planner / simulation
 - [ ] Rebalance progress and node health timeline
