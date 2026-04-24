@@ -52,7 +52,7 @@ dist-ssr
 *.sw?
 
 .env*
-!config.yaml.example
+!config.example.yaml
 docker-compose.*.yml
 !backend/tests/smoke/docker-compose.test.yml
 
@@ -64,6 +64,6 @@ garage.toml
 backend/docs/
 config.yaml
 docs/**/*.md
-
+!docs/garage-setup.md
 # Superpowers brainstorm / session scratch
 .superpowers/
