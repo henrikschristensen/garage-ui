@@ -11,12 +11,7 @@
       "changelog-path": "CHANGELOG.md",
       "exclude-paths": ["helm/garage-ui"],
       "extra-files": [
-        {
-          "type": "yaml",
-          "path": "helm/garage-ui/Chart.yaml",
-          "jsonpath": "$.appVersion",
-          "glob": false
-        }
+        "helm/garage-ui/Chart.yaml"
       ]
     },
     "helm/garage-ui": {
