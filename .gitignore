@@ -65,5 +65,5 @@ backend/docs/
 config.yaml
 docs/**/*.md
 !docs/garage-setup.md
-# Superpowers brainstorm / session scratch
-.superpowers/
+
+**/worktrees
