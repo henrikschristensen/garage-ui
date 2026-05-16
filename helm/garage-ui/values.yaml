@@ -14,6 +14,26 @@ fullnameOverride: ""
 
 extraEnvs: []
 
+# Extra Kubernetes manifests to deploy alongside the chart.
+# Each entry is rendered through `tpl`, so Helm templating is supported.
+# Useful for ExternalSecret, HTTPRoute, CiliumNetworkPolicy, etc.
+extraObjects: []
+  # - apiVersion: external-secrets.io/v1beta1
+  #   kind: ExternalSecret
+  #   metadata:
+  #     name: garage-ui-admin
+  #   spec:
+  #     refreshInterval: 1h
+  #     secretStoreRef:
+  #       name: vault
+  #       kind: ClusterSecretStore
+  #     target:
+  #       name: garage-ui-admin
+  #     data:
+  #       - secretKey: admin-token
+  #         remoteRef:
+  #           key: garage/admin-token
+
 config:
   server:
     host: "0.0.0.0"
