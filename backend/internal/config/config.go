@@ -328,15 +328,6 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// ResolveTokenAuth auto-enables token auth when no other auth method is
-// configured, unless it was explicitly set. This ensures the app never
-// starts without a login wall.
-func (c *Config) ResolveTokenAuth() {
-	if !c.Auth.Admin.Enabled && !c.Auth.OIDC.Enabled && !c.Auth.Token.Enabled {
-		c.Auth.Token.Enabled = true
-	}
-}
-
 // GetAddress returns the full server address (host:port)
 func (c *Config) GetAddress() string {
 	return fmt.Sprintf("%s:%d", c.Server.Host, c.Server.Port)

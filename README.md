@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://github.com/Noooste/garage-ui/actions/workflows/build.yml"><img src="https://github.com/Noooste/garage-ui/actions/workflows/build.yml/badge.svg" alt="Docker Build" /></a>
-  <a href="https://github.com/Noooste/garage-ui/actions/workflows/release.yml"><img src="https://github.com/Noooste/garage-ui/actions/workflows/release.yml/badge.svg" alt="Helm Chart" /></a>
+  <a href="https://github.com/Noooste/garage-ui/actions/workflows/chart-release.yml"><img src="https://github.com/Noooste/garage-ui/actions/workflows/chart-release.yml/badge.svg" alt="Helm Chart" /></a>
   <a href="https://codecov.io/gh/Noooste/garage-ui"><img src="https://codecov.io/gh/Noooste/garage-ui/branch/main/graph/badge.svg" alt="Coverage" /></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go" alt="Go Version" /></a>

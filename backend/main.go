@@ -87,9 +87,6 @@ func main() {
 		logger.Get().Fatal().Err(err).Str("config_path", *configPath).Msg("Failed to load configuration")
 	}
 
-	// Auto-enable token auth if no other auth method is configured
-	cfg.ResolveTokenAuth()
-
 	// Initialize logger with configuration from config file
 	logger.Init(logger.Config{
 		Level:  cfg.Logging.Level,

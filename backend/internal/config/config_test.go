@@ -485,46 +485,6 @@ func TestLoad_EnvOverridesToml(t *testing.T) {
 	}
 }
 
-func TestValidate_TokenAuthAutoEnabled(t *testing.T) {
-	cfg := validBaseConfig()
-	cfg.ResolveTokenAuth()
-	if !cfg.Auth.Token.Enabled {
-		t.Error("expected token auth to be auto-enabled when no other auth is configured")
-	}
-}
-
-func TestValidate_TokenAuthNotAutoEnabledWhenAdminEnabled(t *testing.T) {
-	cfg := validBaseConfig()
-	cfg.Auth.Admin.Enabled = true
-	cfg.Auth.Admin.Username = "u"
-	cfg.Auth.Admin.Password = "p"
-	cfg.ResolveTokenAuth()
-	if cfg.Auth.Token.Enabled {
-		t.Error("expected token auth to stay disabled when admin auth is configured")
-	}
-}
-
-func TestValidate_TokenAuthNotAutoEnabledWhenOIDCEnabled(t *testing.T) {
-	cfg := validBaseConfig()
-	applyValidOIDC(&cfg)
-	cfg.ResolveTokenAuth()
-	if cfg.Auth.Token.Enabled {
-		t.Error("expected token auth to stay disabled when OIDC is configured")
-	}
-}
-
-func TestValidate_TokenAuthExplicitlyEnabled(t *testing.T) {
-	cfg := validBaseConfig()
-	cfg.Auth.Admin.Enabled = true
-	cfg.Auth.Admin.Username = "u"
-	cfg.Auth.Admin.Password = "p"
-	cfg.Auth.Token.Enabled = true
-	cfg.ResolveTokenAuth()
-	if !cfg.Auth.Token.Enabled {
-		t.Error("expected token auth to stay enabled when explicitly set")
-	}
-}
-
 func TestEffectiveAdminRoles(t *testing.T) {
 	tests := []struct {
 		name       string
