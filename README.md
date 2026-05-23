@@ -139,6 +139,37 @@ GARAGE_UI_GARAGE_ENDPOINT=http://garage:3900
 GARAGE_UI_GARAGE_ADMIN_TOKEN=your-token
 ```
 
+#### Loading sensitive values from files (`_FILE` suffix)
+
+For Docker/Kubernetes secret integration, sensitive env vars can be read from files instead of plain values. Set `{VAR}_FILE=/path/to/file` and garage-ui reads the file's contents (trailing CR/LF trimmed) as the value. If both `{VAR}` and `{VAR}_FILE` are set, `_FILE` wins and a warning is logged. A missing or unreadable file causes startup to fail.
+
+Supported vars:
+
+- `GARAGE_UI_GARAGE_ADMIN_TOKEN_FILE`
+- `GARAGE_UI_AUTH_ADMIN_USERNAME_FILE`
+- `GARAGE_UI_AUTH_ADMIN_PASSWORD_FILE`
+- `GARAGE_UI_AUTH_JWT_PRIVATE_KEY_FILE`
+- `GARAGE_UI_AUTH_OIDC_CLIENT_ID_FILE`
+- `GARAGE_UI_AUTH_OIDC_CLIENT_SECRET_FILE`
+
+Example with Docker Compose secrets:
+
+```yaml
+services:
+  garage-ui:
+    image: noooste/garage-ui:latest
+    environment:
+      GARAGE_UI_AUTH_ADMIN_PASSWORD_FILE: /run/secrets/admin_password
+    secrets:
+      - admin_password
+
+secrets:
+  admin_password:
+    file: ./admin_password.txt
+```
+
+This matches the convention used by the official Postgres and MySQL Docker images. Helm users do not need this — the chart already injects secrets via `existingSecret` references.
+
 ## Garage Configuration
 
 Garage UI requires these settings in your `garage.toml`:
