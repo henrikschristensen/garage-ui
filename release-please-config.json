@@ -21,8 +21,7 @@
       "component": "garage-ui-chart",
       "package-name": "garage-ui",
       "include-component-in-tag": true,
-      "changelog-path": "CHANGELOG.md",
-      "release-as": "0.6.1"
+      "changelog-path": "CHANGELOG.md"
     }
   }
 }
