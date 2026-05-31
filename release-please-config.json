@@ -9,14 +9,20 @@
       "component": "garage-ui",
       "include-component-in-tag": false,
       "changelog-path": "CHANGELOG.md",
-      "exclude-paths": ["helm/garage-ui"]
+      "exclude-paths": [
+        "helm/garage-ui",
+        ".github",
+        "docs",
+        "scripts"
+      ]
     },
     "helm/garage-ui": {
       "release-type": "helm",
       "component": "garage-ui-chart",
       "package-name": "garage-ui",
       "include-component-in-tag": true,
-      "changelog-path": "CHANGELOG.md"
+      "changelog-path": "CHANGELOG.md",
+      "release-as": "0.6.1"
     }
   }
 }
