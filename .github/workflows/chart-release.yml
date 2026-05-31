@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'garage-ui-chart-v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
