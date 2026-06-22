@@ -9,7 +9,7 @@
       "include-component-in-tag": false,
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
-        "helm/garage-ui/Chart.yaml",
+        { "type": "generic", "path": "helm/garage-ui/Chart.yaml" },
         "helm/garage-ui/README.md"
       ]
     }
