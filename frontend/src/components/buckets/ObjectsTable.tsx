@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {ChevronLeft, ChevronRight, Download, Eye, FileIcon, FolderIcon, Loader2, MoreVertical, Trash2} from 'lucide-react';
 import {Select, SelectOption} from '@/components/ui/select';
-import {formatBytes, formatRelativeTime} from '@/lib/file-utils';
+import {downloadObject, formatBytes, formatRelativeTime} from '@/lib/file-utils';
 import type {S3Object} from '@/types';
 
 interface ObjectsTableProps {
@@ -353,7 +353,7 @@ export function ObjectsTable({
                         <Eye className="h-4 w-4" />
                         View Details
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => downloadObject(bucketName, obj.key)}>
                         <Download className="h-4 w-4" />
                         Download
                       </DropdownMenuItem>

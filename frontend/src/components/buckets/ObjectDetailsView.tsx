@@ -8,7 +8,7 @@ import { IconTile } from '@/components/ui/icon-tile';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { ArrowLeft, ChevronRight, Copy, Download, File, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatBytes } from '@/lib/file-utils';
+import { downloadObject, formatBytes } from '@/lib/file-utils';
 import { formatDate } from '@/lib/utils';
 
 function CardSection({ title, children }: { title: string; children: React.ReactNode }) {
@@ -73,22 +73,9 @@ export function ObjectDetailsView() {
     toast.success(label);
   };
 
-  const handleDownload = async () => {
+  const handleDownload = () => {
     if (!bucketName || !objectKey) return;
-    try {
-      const blob = await objectsApi.get(bucketName, objectKey);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName || 'download';
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      toast.success('Download started');
-    } catch {
-      // error toast handled by axios interceptor
-    }
+    downloadObject(bucketName, objectKey);
   };
 
   const handleDelete = async () => {
