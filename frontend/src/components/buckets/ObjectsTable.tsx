@@ -22,6 +22,8 @@ interface ObjectsTableProps {
   objects: S3Object[];
   currentPath: string;
   searchQuery: string;
+  filterQuery: string;
+  deepSearch: boolean;
   selectedFileKeys: Set<string>;
   isDragActive: boolean;
   isLoading?: boolean;
@@ -46,6 +48,8 @@ export function ObjectsTable({
   objects,
   currentPath,
   searchQuery,
+  filterQuery,
+  deepSearch,
   selectedFileKeys,
   isDragActive,
   isLoading = false,
@@ -86,7 +90,9 @@ export function ObjectsTable({
   }, [initialized, initialPageToken, initialItemsPerPage, itemsPerPage, nextContinuationToken, onPageChange, onItemsPerPageChange]);
 
   const filteredObjects = useMemo(() => {
-    const query = searchQuery.toLowerCase();
+    // Filter on the debounced query, not the raw input, so the list only
+    // updates once typing pauses (matches the debounced server request).
+    const query = filterQuery.toLowerCase();
     const filtered = objects.filter((obj) => obj.key.toLowerCase().includes(query));
     return [...filtered].sort((a, b) => {
       const aIsFolder = a.isFolder ? 1 : 0;
@@ -96,8 +102,8 @@ export function ObjectsTable({
       let compareValue = 0;
       switch (sortColumn) {
         case 'name': {
-          const aName = a.key.replace(currentPath, '').replace('/', '').toLowerCase();
-          const bName = b.key.replace(currentPath, '').replace('/', '').toLowerCase();
+          const aName = a.key.replace(currentPath, '').replace(/\/$/, '').toLowerCase();
+          const bName = b.key.replace(currentPath, '').replace(/\/$/, '').toLowerCase();
           compareValue = aName.localeCompare(bName);
           break;
         }
@@ -114,13 +120,15 @@ export function ObjectsTable({
 
       return sortDirection === 'asc' ? compareValue : -compareValue;
     });
-  }, [objects, searchQuery, sortColumn, sortDirection, currentPath]);
+  }, [objects, filterQuery, sortColumn, sortDirection, currentPath]);
 
-  // Effect 2: Reset pagination ONLY on path navigation
+  // Effect 2: Reset pagination on path navigation or when a search begins/ends.
+  // Search results are a single flat list, so page-token state must not leak
+  // across the search/browse boundary.
   useEffect(() => {
     setPageTokens([undefined]);
     setCurrentPageIndex(0);
-  }, [currentPath]);
+  }, [currentPath, searchQuery, deepSearch]);
 
   // Update page tokens when we get a new next token
   useEffect(() => {
@@ -137,11 +145,33 @@ export function ObjectsTable({
     }
   }, [nextContinuationToken, isTruncated, currentPageIndex]);
 
-  const hasPrevious = currentPageIndex > 0;
-  const hasNext = isTruncated;
+  // Prefix search and normal browsing are server-paginated (query folded into
+  // the prefix; continuation tokens for pages). Deep search loads the whole
+  // capped result set in one response, so we paginate that on the client by
+  // itemsPerPage instead of dumping every match at once.
+  const isDeepSearching = deepSearch && searchQuery.trim().length > 0;
+  const clientPaginated = isDeepSearching;
+  const totalPages = clientPaginated
+    ? Math.max(1, Math.ceil(filteredObjects.length / itemsPerPage))
+    : 1;
+  // Clamp during render (not via a setState effect) so a shrinking result set
+  // or a larger page size can't strand us on an out-of-range page.
+  const pageIndex = clientPaginated ? Math.min(currentPageIndex, totalPages - 1) : currentPageIndex;
+  const pageObjects = clientPaginated
+    ? filteredObjects.slice(pageIndex * itemsPerPage, (pageIndex + 1) * itemsPerPage)
+    : filteredObjects;
+  const hasPrevious = pageIndex > 0;
+  const hasNext = clientPaginated ? pageIndex < totalPages - 1 : isTruncated;
 
   const handleNextPage = () => {
-    if (hasNext && nextContinuationToken) {
+    if (!hasNext) return;
+    // Client-paginated (deep search): just advance the slice, no server fetch.
+    if (clientPaginated) {
+      setCurrentPageIndex(pageIndex + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    if (nextContinuationToken) {
       const nextIndex = currentPageIndex + 1;
       setCurrentPageIndex(nextIndex);
       onPageChange(nextContinuationToken);
@@ -150,13 +180,16 @@ export function ObjectsTable({
   };
 
   const handlePreviousPage = () => {
-    if (hasPrevious) {
-      const prevIndex = currentPageIndex - 1;
-      setCurrentPageIndex(prevIndex);
-      const previousToken = pageTokens[prevIndex];
-      onPageChange(previousToken);
+    if (!hasPrevious) return;
+    if (clientPaginated) {
+      setCurrentPageIndex(pageIndex - 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
     }
+    const prevIndex = currentPageIndex - 1;
+    setCurrentPageIndex(prevIndex);
+    onPageChange(pageTokens[prevIndex]);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleItemsPerPageChange = (value: string) => {
@@ -235,7 +268,7 @@ export function ObjectsTable({
             </TableCell>
           </TableRow>
         ) : (
-          filteredObjects.map((obj) => (
+          pageObjects.map((obj) => (
             <TableRow key={obj.key}>
               <TableCell className="w-[50px]">
                 {obj.isFolder ? (
@@ -265,7 +298,7 @@ export function ObjectsTable({
                       onClick={() => onNavigateToFolder(obj.key)}
                       className="font-medium cursor-pointer underline hover:text-primary"
                     >
-                      {obj.key.replace(currentPath, '').replace('/', '')}
+                      {obj.key.replace(currentPath, '').replace(/\/$/, '')}
                     </button>
                   ) : (
                     <button
@@ -395,7 +428,9 @@ export function ObjectsTable({
         {/* Pagination info and controls */}
         <div className="flex items-center gap-4">
           <span className="text-sm text-muted-foreground">
-            Page {currentPageIndex + 1} • Showing {filteredObjects.length} item{filteredObjects.length !== 1 ? 's' : ''}
+            {isDeepSearching
+              ? `Page ${pageIndex + 1} of ${totalPages} • ${filteredObjects.length} match${filteredObjects.length !== 1 ? 'es' : ''}${isTruncated ? ' (capped, refine to narrow)' : ''}`
+              : `Page ${pageIndex + 1} • Showing ${pageObjects.length} item${pageObjects.length !== 1 ? 's' : ''}`}
           </span>
 
           <div className="flex items-center gap-2">
