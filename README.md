@@ -287,3 +287,7 @@ MIT - see [LICENSE](LICENSE)
 - [Issues](https://github.com/Noooste/garage-ui/issues)
 - [Contributing](CONTRIBUTING.md)
 - [Garage Docs](https://garagehq.deuxfleurs.fr/documentation/)
+
+---
+
+<p align="center">Made with ❤️ in France 🇫🇷</p>
