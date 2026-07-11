@@ -25,11 +25,11 @@ interface ObjectBrowserViewProps {
   onDeepSearchChange: (enabled: boolean) => void;
   onNavigateToFolder: (path: string) => void;
   onBackToBuckets: () => void;
-  onUploadFiles: (files: File[]) => Promise<boolean>;
+  onUploadFiles?: (files: File[]) => Promise<boolean>;
   uploadTasks: UploadTask[];
-  onDeleteObject: (key: string) => Promise<boolean>;
-  onDeleteMultipleObjects: (keys: string[]) => Promise<boolean>;
-  onCreateDirectory: (name: string) => Promise<boolean>;
+  onDeleteObject?: (key: string) => Promise<boolean>;
+  onDeleteMultipleObjects?: (keys: string[]) => Promise<boolean>;
+  onCreateDirectory?: (name: string) => Promise<boolean>;
   onRefresh: () => Promise<void>;
   onPageChange: (token?: string) => void;
   onItemsPerPageChange: (count: number) => void;
@@ -75,6 +75,8 @@ export function ObjectBrowserView({
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: async (acceptedFiles, _fileRejections, event) => {
+      if (!onUploadFiles) return;
+
       // Get files with their full paths from DataTransferItems API
       const filesWithPaths: File[] = [];
 
@@ -101,6 +103,7 @@ export function ObjectBrowserView({
       setShowUploadZone(false);
     },
     noClick: true,
+    disabled: !onUploadFiles,
   });
 
   // Helper function to traverse file/directory tree
@@ -153,13 +156,14 @@ export function ObjectBrowserView({
   };
 
   const handleBulkDeleteFiles = async () => {
-    if (selectedFileKeys.size === 0) return;
+    if (!onDeleteMultipleObjects || selectedFileKeys.size === 0) return;
 
     await onDeleteMultipleObjects(Array.from(selectedFileKeys));
     setSelectedFileKeys(new Set());
   };
 
   const handleDeleteObject = async (key: string): Promise<boolean> => {
+    if (!onDeleteObject) return false;
     const success = await onDeleteObject(key);
     if (success) {
       setDeleteObjectDialogOpen(false);
@@ -169,6 +173,7 @@ export function ObjectBrowserView({
   };
 
   const uploadFiles = async (files: File[]) => {
+    if (!onUploadFiles) return;
     await onUploadFiles(files);
     setShowUploadZone(false);
   };
@@ -232,7 +237,7 @@ export function ObjectBrowserView({
             </Button>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {selectedFileKeys.size > 0 && (
+            {onDeleteMultipleObjects && selectedFileKeys.size > 0 && (
               <Button
                 onClick={handleBulkDeleteFiles}
                 title={`Delete ${selectedFileKeys.size} selected file(s)`}
@@ -242,14 +247,18 @@ export function ObjectBrowserView({
                 Delete {selectedFileKeys.size} file{selectedFileKeys.size !== 1 ? 's' : ''}
               </Button>
             )}
-            <Button variant="secondary" onClick={() => setShowUploadZone(!showUploadZone)} className="flex-1 sm:flex-initial">
-              <Upload className="h-4 w-4" />
-              <span className="hidden sm:inline">Upload</span>
-            </Button>
-            <Button onClick={() => setCreateDirDialogOpen(true)} className="flex-1 sm:flex-initial">
-              <FolderPlus className="h-4 w-4" />
-              <span className="hidden sm:inline">Add Directory</span>
-            </Button>
+            {onUploadFiles && (
+              <Button variant="secondary" onClick={() => setShowUploadZone(!showUploadZone)} className="flex-1 sm:flex-initial">
+                <Upload className="h-4 w-4" />
+                <span className="hidden sm:inline">Upload</span>
+              </Button>
+            )}
+            {onCreateDirectory && (
+              <Button onClick={() => setCreateDirDialogOpen(true)} className="flex-1 sm:flex-initial">
+                <FolderPlus className="h-4 w-4" />
+                <span className="hidden sm:inline">Add Directory</span>
+              </Button>
+            )}
             <Button variant="secondary" size="icon" onClick={onRefresh} title="Refresh" disabled={isRefreshing}>
               <RotateCwIcon className={`h-4 w-4 transition-transform duration-500 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
@@ -257,7 +266,7 @@ export function ObjectBrowserView({
         </div>
 
         {/* Upload Zone */}
-        {showUploadZone && uploadTasks.length === 0 && (
+        {onUploadFiles && showUploadZone && uploadTasks.length === 0 && (
           <div className="border rounded-lg p-6 bg-muted/30 space-y-4">
             <div className="flex gap-6">
               <div className="flex-shrink-0 flex items-center justify-center">
@@ -384,10 +393,10 @@ export function ObjectBrowserView({
             nextContinuationToken={nextContinuationToken}
             itemsPerPage={itemsPerPage}
             onNavigateToFolder={onNavigateToFolder}
-            onDeleteObject={(obj) => {
+            onDeleteObject={onDeleteObject ? (obj) => {
               setSelectedObject(obj);
               setDeleteObjectDialogOpen(true);
-            }}
+            } : undefined}
             onToggleFileSelection={handleToggleFileSelection}
             onSelectAllFiles={handleSelectAllFiles}
             onPageChange={onPageChange}
@@ -399,12 +408,14 @@ export function ObjectBrowserView({
       </div>
 
       {/* Create Directory Dialog */}
-      <CreateDirectoryDialog
-        open={createDirDialogOpen}
-        onOpenChange={setCreateDirDialogOpen}
-        currentPath={currentPath}
-        onCreateDirectory={onCreateDirectory}
-      />
+      {onCreateDirectory && (
+        <CreateDirectoryDialog
+          open={createDirDialogOpen}
+          onOpenChange={setCreateDirDialogOpen}
+          currentPath={currentPath}
+          onCreateDirectory={onCreateDirectory}
+        />
+      )}
 
       {/* Delete Object Dialog */}
       <DeleteObjectDialog
