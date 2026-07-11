@@ -102,11 +102,11 @@ auth:
     cookie_http_only: true
     cookie_same_site: "lax" # lax, strict, none
 
-# Optional: team-based access control (issue #33).
-# Absent  -> every authenticated user has full access (historical behavior).
+# Optional: team-based access control (see docs/access-control.md).
+# Absent  -> every authenticated user has full access.
 # Present -> default-deny: OIDC users get only what their teams grant; users
 #            matching no team get 403 everywhere. admin_role users, admin
-#            password logins, and token logins are always full-admin in v1.
+#            password logins, and token logins are always full-admin.
 # NOTE: this is UI-layer policy, NOT a security boundary. Anyone holding the
 # Garage admin token or S3 keys bypasses it entirely.
 #
