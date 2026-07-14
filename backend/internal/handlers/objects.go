@@ -519,8 +519,8 @@ func (h *ObjectHandler) GetPresignedURL(c fiber.Ctx) error {
 //	@Tags			Objects
 //	@Accept			json
 //	@Produce		json
-//	@Param			bucket	path		string															true	"Name of the bucket containing the objects"
-//	@Param			request	body		object{keys=[]string,prefix=string}								true	"List of object keys to delete and optional prefix for path context"
+//	@Param			bucket	path		string																true	"Name of the bucket containing the objects"
+//	@Param			request	body		object{keys=[]string,prefixes=[]string}								true	"Object keys to delete and/or folder prefixes to delete recursively"
 //	@Success		200		{object}	models.APIResponse{data=models.ObjectDeleteMultipleResponse}	"Successfully deleted the objects"
 //	@Failure		400		{object}	models.APIResponse{error=models.APIError}						"Invalid request parameters"
 //	@Failure		404		{object}	models.APIResponse{error=models.APIError}						"Bucket not found"
@@ -537,10 +537,11 @@ func (h *ObjectHandler) DeleteMultipleObjects(c fiber.Ctx) error {
 		)
 	}
 
-	// Parse request body to get keys and optional prefix
+	// Parse request body. "keys" are concrete objects to delete; "prefixes" are
+	// folders to delete recursively (every object stored under the prefix).
 	var req struct {
-		Keys   []string `json:"keys"`
-		Prefix string   `json:"prefix,omitempty"`
+		Keys     []string `json:"keys"`
+		Prefixes []string `json:"prefixes,omitempty"`
 	}
 	if err := c.Bind().JSON(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(
@@ -548,23 +549,61 @@ func (h *ObjectHandler) DeleteMultipleObjects(c fiber.Ctx) error {
 		)
 	}
 
-	if len(req.Keys) == 0 {
+	if len(req.Keys) == 0 && len(req.Prefixes) == 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(
-			models.ErrorResponse(models.ErrCodeBadRequest, "At least one key is required"),
+			models.ErrorResponse(models.ErrCodeBadRequest, "At least one key or prefix is required"),
 		)
 	}
 
-	// Delete multiple objects
-	if err := h.s3Service.DeleteMultipleObjects(ctx, bucketName, req.Keys); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(
-			models.ErrorResponse(models.ErrCodeDeleteFailed, "Failed to delete objects: "+err.Error()),
-		)
+	// Validate and normalize folder prefixes before running an irreversible
+	// recursive delete on a public endpoint. A blank prefix would match the
+	// entire bucket, and a prefix without a trailing slash (e.g. "photos/2024")
+	// would also match sibling keys such as "photos/2024-old/...". Reject blanks
+	// with a 4XX and force a trailing slash so a prefix only ever deletes the
+	// objects inside its own folder.
+	prefixes := make([]string, 0, len(req.Prefixes))
+	for _, p := range req.Prefixes {
+		trimmed := strings.TrimSpace(p)
+		if trimmed == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(
+				models.ErrorResponse(models.ErrCodeBadRequest, "Prefix must not be blank"),
+			)
+		}
+		if !strings.HasSuffix(trimmed, "/") {
+			trimmed += "/"
+		}
+		prefixes = append(prefixes, trimmed)
+	}
+
+	deleted := 0
+
+	// Delete the individually selected objects in a single batch call.
+	if len(req.Keys) > 0 {
+		n, err := h.s3Service.DeleteMultipleObjects(ctx, bucketName, req.Keys)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(
+				models.ErrorResponse(models.ErrCodeDeleteFailed, "Failed to delete objects: "+err.Error()),
+			)
+		}
+		deleted += n
+	}
+
+	// Recursively delete every object under each selected folder prefix.
+	for _, prefix := range prefixes {
+		n, err := h.s3Service.DeleteObjectsByPrefix(ctx, bucketName, prefix)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(
+				models.ErrorResponse(models.ErrCodeDeleteFailed, "Failed to delete folder "+prefix+": "+err.Error()),
+			)
+		}
+		deleted += n
 	}
 
 	response := models.ObjectDeleteMultipleResponse{
-		Bucket:  bucketName,
-		Deleted: len(req.Keys),
-		Keys:    req.Keys,
+		Bucket:   bucketName,
+		Deleted:  deleted,
+		Keys:     req.Keys,
+		Prefixes: prefixes,
 	}
 
 	return c.JSON(models.SuccessResponse(response))

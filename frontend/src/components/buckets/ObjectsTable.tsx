@@ -25,15 +25,22 @@ interface ObjectsTableProps {
   filterQuery: string;
   deepSearch: boolean;
   selectedFileKeys: Set<string>;
+  selectedFolderKeys: Set<string>;
   isDragActive: boolean;
   isLoading?: boolean;
   isTruncated?: boolean;
   nextContinuationToken?: string;
   itemsPerPage: number;
   onNavigateToFolder: (key: string) => void;
+  // Optional so the parent can withhold them when the user lacks delete
+  // permission; canDelete (below) is derived from onDeleteObject.
   onDeleteObject?: (object: S3Object) => void;
+  onDeleteFolder?: (object: S3Object) => void;
   onToggleFileSelection: (key: string) => void;
-  onSelectAllFiles: () => void;
+  onToggleFolderSelection: (key: string) => void;
+  // Receives the keys of the currently *visible* (filtered) rows so selection
+  // stays aligned with what the search is actually showing.
+  onSelectAll: (fileKeys: string[], folderKeys: string[]) => void;
   onPageChange: (token?: string) => void;
   onItemsPerPageChange: (count: number) => void;
   initialPageToken?: string;
@@ -51,6 +58,7 @@ export function ObjectsTable({
   filterQuery,
   deepSearch,
   selectedFileKeys,
+  selectedFolderKeys,
   isDragActive,
   isLoading = false,
   isTruncated = false,
@@ -58,8 +66,10 @@ export function ObjectsTable({
   itemsPerPage,
   onNavigateToFolder,
   onDeleteObject,
+  onDeleteFolder,
   onToggleFileSelection,
-  onSelectAllFiles,
+  onToggleFolderSelection,
+  onSelectAll,
   onPageChange,
   onItemsPerPageChange,
   initialPageToken,
@@ -218,12 +228,23 @@ export function ObjectsTable({
             {canDelete && (
               <TableHead className="w-[50px]">
                 <Checkbox
+                  // Scope select-all to the rows actually on screen (pageObjects).
+                  // In normal/prefix browsing this equals filteredObjects; in
+                  // client-paginated deep search it is just the visible page, so
+                  // one click never selects hidden matches for a destructive delete.
                   checked={
-                    filteredObjects.filter(obj => !obj.isFolder).length > 0 &&
-                    selectedFileKeys.size === filteredObjects.filter(obj => !obj.isFolder).length
+                    pageObjects.length > 0 &&
+                    pageObjects.every(obj =>
+                      obj.isFolder ? selectedFolderKeys.has(obj.key) : selectedFileKeys.has(obj.key),
+                    )
                   }
-                  onCheckedChange={onSelectAllFiles}
-                  aria-label="Select all files"
+                  onCheckedChange={() =>
+                    onSelectAll(
+                      pageObjects.filter(obj => !obj.isFolder).map(obj => obj.key),
+                      pageObjects.filter(obj => obj.isFolder).map(obj => obj.key),
+                    )
+                  }
+                  aria-label="Select all objects"
                 />
               </TableHead>
             )}
@@ -277,10 +298,9 @@ export function ObjectsTable({
                 <TableCell className="w-[50px]">
                   {obj.isFolder ? (
                     <Checkbox
-                      disabled
-                      checked={false}
-                      className="opacity-50 cursor-not-allowed bg-muted"
-                      aria-label="Folders cannot be selected"
+                      checked={selectedFolderKeys.has(obj.key)}
+                      onCheckedChange={() => onToggleFolderSelection(obj.key)}
+                      aria-label={`Select folder ${obj.key} (deletes its contents recursively)`}
                     />
                   ) : (
                     <Checkbox
@@ -379,7 +399,33 @@ export function ObjectsTable({
                 })() : null}
               </TableCell>
               <TableCell>
-                {!obj.isFolder && (
+                {obj.isFolder ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger>
+                      <Button variant="ghost" size="icon" className="-m-6 top-1 relative">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => onNavigateToFolder(obj.key)}>
+                        <FolderIcon className="h-4 w-4" />
+                        Open
+                      </DropdownMenuItem>
+                      {onDeleteFolder && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => onDeleteFolder(obj)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete folder
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
                   <DropdownMenu>
                     <DropdownMenuTrigger>
                       <Button variant="ghost" size="icon" className="-m-6 top-1 relative">

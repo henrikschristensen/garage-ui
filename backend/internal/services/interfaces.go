@@ -56,7 +56,8 @@ type S3Storage interface {
 	DeleteObject(ctx context.Context, bucketName, key string) error
 	GetObjectMetadata(ctx context.Context, bucketName, key string) (*models.ObjectInfo, error)
 	GetPresignedURL(ctx context.Context, bucketName, key string, expiresIn time.Duration) (string, error)
-	DeleteMultipleObjects(ctx context.Context, bucketName string, keys []string) error
+	DeleteMultipleObjects(ctx context.Context, bucketName string, keys []string) (int, error)
+	DeleteObjectsByPrefix(ctx context.Context, bucketName, prefix string) (int, error)
 	UploadMultipleObjects(ctx context.Context, bucketName string, files []struct {
 		Key         string
 		Body        io.Reader

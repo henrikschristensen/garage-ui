@@ -604,16 +604,23 @@ func (s *S3Service) GetObjectMetadata(ctx context.Context, bucketName, key strin
 	}, nil
 }
 
-// DeleteMultipleObjects deletes multiple objects from a bucket
-func (s *S3Service) DeleteMultipleObjects(ctx context.Context, bucketName string, keys []string) error {
+// DeleteMultipleObjects deletes multiple objects from a bucket and returns the
+// number of objects that were removed (requested keys minus any that failed).
+//
+// Note: S3/MinIO batch delete is idempotent — removing a key that does not
+// exist succeeds and is not reported on the error channel, so it counts toward
+// the returned total. The count therefore reflects "keys the delete operation
+// did not fail on", which is the strongest signal obtainable without a
+// per-key existence check.
+func (s *S3Service) DeleteMultipleObjects(ctx context.Context, bucketName string, keys []string) (int, error) {
 	if len(keys) == 0 {
-		return nil
+		return 0, nil
 	}
 
 	// Get bucket-specific MinIO client
 	client, err := s.getMinioClient(ctx, bucketName, OpWrite)
 	if err != nil {
-		return fmt.Errorf("failed to get MinIO client for bucket %s: %w", bucketName, err)
+		return 0, fmt.Errorf("failed to get MinIO client for bucket %s: %w", bucketName, err)
 	}
 
 	// Create channel for objects to delete
@@ -629,17 +636,61 @@ func (s *S3Service) DeleteMultipleObjects(ctx context.Context, bucketName string
 		}
 	}()
 
-	// Call MinIO RemoveObjects API (batch delete)
+	// Call MinIO RemoveObjects API (batch delete). RemoveObjects only surfaces
+	// the objects it FAILED to delete, so we drain the whole channel (which also
+	// avoids leaking the sender goroutine) and count failures.
 	errorCh := client.RemoveObjects(ctx, bucketName, objectsCh, minio.RemoveObjectsOptions{})
 
-	// Check for errors
-	for err := range errorCh {
-		if err.Err != nil {
-			return fmt.Errorf("failed to delete object %s from bucket %s: %w", err.ObjectName, bucketName, err.Err)
+	failed := 0
+	var firstErr error
+	for rerr := range errorCh {
+		if rerr.Err != nil {
+			failed++
+			if firstErr == nil {
+				firstErr = fmt.Errorf("failed to delete object %s from bucket %s: %w", rerr.ObjectName, bucketName, rerr.Err)
+			}
 		}
 	}
 
-	return nil
+	if firstErr != nil {
+		return len(keys) - failed, firstErr
+	}
+
+	return len(keys), nil
+}
+
+// DeleteObjectsByPrefix recursively deletes every object stored under the given
+// prefix (i.e. a "folder"), including the directory marker itself. It returns
+// the number of objects that were deleted.
+func (s *S3Service) DeleteObjectsByPrefix(ctx context.Context, bucketName, prefix string) (int, error) {
+	if prefix == "" {
+		return 0, fmt.Errorf("prefix is required for recursive delete")
+	}
+
+	// Get bucket-specific MinIO client
+	client, err := s.getMinioClient(ctx, bucketName, OpWrite)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get MinIO client for bucket %s: %w", bucketName, err)
+	}
+
+	// List every object under the prefix recursively (no delimiter), so nested
+	// folders are flattened into their concrete keys.
+	keys := make([]string, 0)
+	for obj := range client.ListObjects(ctx, bucketName, minio.ListObjectsOptions{
+		Prefix:    prefix,
+		Recursive: true,
+	}) {
+		if obj.Err != nil {
+			return 0, fmt.Errorf("failed to list objects under prefix %s in bucket %s: %w", prefix, bucketName, obj.Err)
+		}
+		keys = append(keys, obj.Key)
+	}
+
+	if len(keys) == 0 {
+		return 0, nil
+	}
+
+	return s.DeleteMultipleObjects(ctx, bucketName, keys)
 }
 
 // GetPresignedURL generates a pre-signed URL for temporary access to an object
