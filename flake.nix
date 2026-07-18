@@ -22,7 +22,7 @@
             pname = "garage-ui-frontend";
             inherit version;
             src = ./frontend;
-            npmDepsHash = "sha256-qx7DRfjCDhtamf9NcKda4PtGsN+qNKUcTQZwZRiVMts=";
+            npmDepsHash = "sha256-j3h3YmYjmfPv+zKBkgx0n4SdqZT4/KXygREWkqL4G+8=";
             installPhase = ''
               runHook preInstall
               mkdir -p $out
