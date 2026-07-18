@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"bufio"
 	"io"
 	"net/url"
 	"path"
@@ -20,13 +19,13 @@ import (
 // served from the same origin as the API, any uploader could otherwise plant
 // stored XSS by uploading a file with one of these Content-Types.
 var unsafeInlineContentTypes = map[string]struct{}{
-	"text/html":             {},
-	"application/xhtml+xml": {},
-	"image/svg+xml":         {},
-	"application/xml":       {},
-	"text/xml":              {},
+	"text/html":              {},
+	"application/xhtml+xml":  {},
+	"image/svg+xml":          {},
+	"application/xml":        {},
+	"text/xml":               {},
 	"application/javascript": {},
-	"text/javascript":       {},
+	"text/javascript":        {},
 }
 
 // safeContentType rewrites Content-Types that the browser would treat as
@@ -68,15 +67,27 @@ func contentDispositionHeader(disposition, key string) string {
 	return disposition + "; filename=\"" + fallback + "\"; filename*=UTF-8''" + encoded
 }
 
+// PreviewTokenMinter mints signed single-object preview tokens.
+// auth.Service satisfies it.
+type PreviewTokenMinter interface {
+	MintPreviewToken(bucket, key string, ttl time.Duration) (string, time.Time, error)
+}
+
+// previewTokenTTL is long enough that seeking mid-playback keeps working.
+// The frontend mints a fresh URL when a token expires.
+const previewTokenTTL = time.Hour
+
 // ObjectHandler handles object-related HTTP requests.
 type ObjectHandler struct {
-	s3Service services.S3Storage
+	s3Service     services.S3Storage
+	previewTokens PreviewTokenMinter
 }
 
 // NewObjectHandler creates a new object handler.
-func NewObjectHandler(s3Service services.S3Storage) *ObjectHandler {
+func NewObjectHandler(s3Service services.S3Storage, previewTokens PreviewTokenMinter) *ObjectHandler {
 	return &ObjectHandler{
-		s3Service: s3Service,
+		s3Service:     s3Service,
+		previewTokens: previewTokens,
 	}
 }
 
@@ -89,6 +100,7 @@ func NewObjectHandler(s3Service services.S3Storage) *ObjectHandler {
 //	@Produce		json
 //	@Param			bucket				path		string												true	"Name of the bucket to list objects from"
 //	@Param			prefix				query		string												false	"Filter objects by prefix"
+//	@Param			search				query		string												false	"Recursively search object keys under prefix by case-insensitive substring (best-effort; bypasses max_keys and continuation_token)"
 //	@Param			max_keys			query		int													false	"Maximum number of objects to return (default: 100)"
 //	@Param			continuation_token	query		string												false	"Token for pagination to retrieve next page of results"
 //	@Success		200					{object}	models.APIResponse{data=models.ObjectListResponse}	"Successfully retrieved list of objects and prefixes"
@@ -109,6 +121,21 @@ func (h *ObjectHandler) ListObjects(c fiber.Ctx) error {
 
 	// Get query parameters for filtering and pagination
 	prefix := c.Query("prefix", "")
+
+	// Search mode: a recursive, best-effort substring search across the whole
+	// subtree under prefix. S3/Garage has no server-side substring search, so
+	// the backend scans and filters. This bypasses page-token pagination and
+	// max_keys, see S3Service.SearchObjects -> pagination is handled frontend side.
+	if search := c.Query("search", ""); search != "" {
+		results, err := h.s3Service.SearchObjects(ctx, bucketName, prefix, search)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(
+				models.ErrorResponse(models.ErrCodeListFailed, "Failed to search objects: "+err.Error()),
+			)
+		}
+		return c.JSON(models.SuccessResponse(results))
+	}
+
 	continuationToken := c.Query("continuation_token", "")
 
 	maxKeysStr := c.Query("max_keys", "100")
@@ -261,12 +288,8 @@ func (h *ObjectHandler) CreateDirectory(c fiber.Ctx) error {
 //	@Failure		404			{object}	models.APIResponse{error=models.APIError}	"Object not found"
 //	@Router			/api/v1/buckets/{bucket}/objects/{key} [get]
 func (h *ObjectHandler) GetObject(c fiber.Ctx) error {
-	ctx := c.Context()
-
-	// Get bucket name from URL parameters
 	bucketName := c.Params("bucket")
 
-	// Get object key from locals (set by route handler) or from params
 	key, ok := c.Locals("objectKey").(string)
 	if !ok || key == "" {
 		key = c.Params("key")
@@ -278,7 +301,17 @@ func (h *ObjectHandler) GetObject(c fiber.Ctx) error {
 		)
 	}
 
-	// Get object from Garage
+	// Range requests stream a partial body so media elements can seek.
+	if rangeHeader := c.Get("Range"); rangeHeader != "" {
+		return h.getObjectRange(c, bucketName, key, rangeHeader)
+	}
+	return h.serveFullObject(c, bucketName, key)
+}
+
+// serveFullObject streams the whole object with a 200, the pre-Range behavior.
+func (h *ObjectHandler) serveFullObject(c fiber.Ctx, bucketName, key string) error {
+	ctx := c.Context()
+
 	body, objectInfo, err := h.s3Service.GetObject(ctx, bucketName, key)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(
@@ -291,11 +324,12 @@ func (h *ObjectHandler) GetObject(c fiber.Ctx) error {
 	// cannot run as XSS in the SPA origin when fetched inline.
 	c.Set("Content-Type", safeContentType(objectInfo.ContentType))
 	c.Set("X-Content-Type-Options", "nosniff")
+	c.Set("Accept-Ranges", "bytes")
 	c.Set("Content-Length", strconv.FormatInt(objectInfo.Size, 10))
 	c.Set("ETag", objectInfo.ETag)
 	c.Set("Last-Modified", objectInfo.LastModified.Format(time.RFC1123))
 
-	// The object key is attacker-controlled — build the header via the safe
+	// The object key is attacker-controlled. Build the header via the safe
 	// RFC 6266 helper to avoid quote/semicolon injection into filename=.
 	disposition := "inline"
 	if c.Query("download") == "true" {
@@ -303,11 +337,60 @@ func (h *ObjectHandler) GetObject(c fiber.Ctx) error {
 	}
 	c.Set("Content-Disposition", contentDispositionHeader(disposition, key))
 
-	// Stream the object body to the client without buffering the entire file
-	return c.SendStreamWriter(func(w *bufio.Writer) {
-		defer body.Close()
-		io.Copy(w, body)
-	})
+	// SendStream (not SendStreamWriter) keeps the declared Content-Length: the
+	// streaming writer variant forces fasthttp into unknown-length chunked
+	// transfer, dropping the header we just set above.
+	return c.SendStream(body, int(objectInfo.Size))
+}
+
+// getObjectRange serves a single-range request with 206 Partial Content.
+// Malformed and multi-range headers fall back to the full 200 response.
+func (h *ObjectHandler) getObjectRange(c fiber.Ctx, bucketName, key, rangeHeader string) error {
+	ctx := c.Context()
+
+	info, err := h.s3Service.GetObjectMetadata(ctx, bucketName, key)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(
+			models.ErrorResponse(models.ErrCodeObjectNotFound, "Object not found: "+err.Error()),
+		)
+	}
+
+	rng, unsatisfiable := parseRangeHeader(rangeHeader, info.Size)
+	if unsatisfiable {
+		c.Set("Accept-Ranges", "bytes")
+		c.Set("Content-Range", "bytes */"+strconv.FormatInt(info.Size, 10))
+		return c.SendStatus(fiber.StatusRequestedRangeNotSatisfiable)
+	}
+	if rng == nil {
+		return h.serveFullObject(c, bucketName, key)
+	}
+
+	body, err := h.s3Service.GetObjectRange(ctx, bucketName, key, rng.start, rng.end)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(
+			models.ErrorResponse(models.ErrCodeObjectNotFound, "Object not found: "+err.Error()),
+		)
+	}
+
+	c.Set("Content-Type", safeContentType(info.ContentType))
+	c.Set("X-Content-Type-Options", "nosniff")
+	c.Set("Accept-Ranges", "bytes")
+	c.Set("Content-Length", strconv.FormatInt(rng.end-rng.start+1, 10))
+	c.Set("Content-Range", "bytes "+strconv.FormatInt(rng.start, 10)+"-"+strconv.FormatInt(rng.end, 10)+"/"+strconv.FormatInt(info.Size, 10))
+	c.Set("ETag", info.ETag)
+	c.Set("Last-Modified", info.LastModified.Format(time.RFC1123))
+
+	disposition := "inline"
+	if c.Query("download") == "true" {
+		disposition = "attachment"
+	}
+	c.Set("Content-Disposition", contentDispositionHeader(disposition, key))
+
+	c.Status(fiber.StatusPartialContent)
+	// SendStream (not SendStreamWriter) keeps the declared Content-Length: the
+	// streaming writer variant forces fasthttp into unknown-length chunked
+	// transfer, dropping the header we just set above.
+	return c.SendStream(body, int(rng.end-rng.start+1))
 }
 
 // DeleteObject deletes an object from a bucket
@@ -412,6 +495,7 @@ func (h *ObjectHandler) GetObjectMetadata(c fiber.Ctx) error {
 		)
 	}
 
+	c.Set("Accept-Ranges", "bytes")
 	return c.JSON(models.SuccessResponse(metadata))
 }
 
@@ -496,6 +580,48 @@ func (h *ObjectHandler) GetPresignedURL(c fiber.Ctx) error {
 	return c.JSON(models.SuccessResponse(response))
 }
 
+// GetPreviewURL mints a short-lived tokenized URL for streaming this object
+//
+//	@Summary		Get a tokenized preview URL for an object
+//	@Description	Returns a relative URL carrying a short-lived token that authorizes streaming this object. Media elements cannot send an Authorization header, so the token rides in the URL instead.
+//	@Tags			Objects
+//	@Produce		json
+//	@Param			bucket	path		string												true	"Name of the bucket containing the object"
+//	@Param			key		path		string												true	"Key (path) of the object"
+//	@Success		200		{object}	models.APIResponse{data=models.PreviewURLResponse}	"Preview URL minted"
+//	@Failure		400		{object}	models.APIResponse{error=models.APIError}			"Bucket name and object key are required"
+//	@Failure		500		{object}	models.APIResponse{error=models.APIError}			"Failed to mint the preview token"
+//	@Router			/api/v1/buckets/{bucket}/objects/{key}/preview-url [get]
+func (h *ObjectHandler) GetPreviewURL(c fiber.Ctx) error {
+	bucketName := c.Params("bucket")
+
+	key, ok := c.Locals("objectKey").(string)
+	if !ok || key == "" {
+		key = c.Params("key")
+	}
+
+	if bucketName == "" || key == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(
+			models.ErrorResponse(models.ErrCodeBadRequest, "Bucket name and object key are required"),
+		)
+	}
+
+	token, expiresAt, err := h.previewTokens.MintPreviewToken(bucketName, key, previewTokenTTL)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(
+			models.ErrorResponse(models.ErrCodeInternalError, "Failed to mint the preview token: "+err.Error()),
+		)
+	}
+
+	previewURL := "/api/v1/buckets/" + url.PathEscape(bucketName) +
+		"/objects/" + url.PathEscape(key) + "?pt=" + url.QueryEscape(token)
+
+	return c.JSON(models.SuccessResponse(models.PreviewURLResponse{
+		URL:       previewURL,
+		ExpiresAt: expiresAt.UTC().Format(time.RFC3339),
+	}))
+}
+
 // DeleteMultipleObjects deletes multiple objects from a bucket
 //
 //	@Summary		Delete multiple objects from bucket
@@ -503,8 +629,8 @@ func (h *ObjectHandler) GetPresignedURL(c fiber.Ctx) error {
 //	@Tags			Objects
 //	@Accept			json
 //	@Produce		json
-//	@Param			bucket	path		string															true	"Name of the bucket containing the objects"
-//	@Param			request	body		object{keys=[]string,prefix=string}								true	"List of object keys to delete and optional prefix for path context"
+//	@Param			bucket	path		string																true	"Name of the bucket containing the objects"
+//	@Param			request	body		object{keys=[]string,prefixes=[]string}								true	"Object keys to delete and/or folder prefixes to delete recursively"
 //	@Success		200		{object}	models.APIResponse{data=models.ObjectDeleteMultipleResponse}	"Successfully deleted the objects"
 //	@Failure		400		{object}	models.APIResponse{error=models.APIError}						"Invalid request parameters"
 //	@Failure		404		{object}	models.APIResponse{error=models.APIError}						"Bucket not found"
@@ -521,10 +647,11 @@ func (h *ObjectHandler) DeleteMultipleObjects(c fiber.Ctx) error {
 		)
 	}
 
-	// Parse request body to get keys and optional prefix
+	// Parse request body. "keys" are concrete objects to delete; "prefixes" are
+	// folders to delete recursively (every object stored under the prefix).
 	var req struct {
-		Keys   []string `json:"keys"`
-		Prefix string   `json:"prefix,omitempty"`
+		Keys     []string `json:"keys"`
+		Prefixes []string `json:"prefixes,omitempty"`
 	}
 	if err := c.Bind().JSON(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(
@@ -532,23 +659,61 @@ func (h *ObjectHandler) DeleteMultipleObjects(c fiber.Ctx) error {
 		)
 	}
 
-	if len(req.Keys) == 0 {
+	if len(req.Keys) == 0 && len(req.Prefixes) == 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(
-			models.ErrorResponse(models.ErrCodeBadRequest, "At least one key is required"),
+			models.ErrorResponse(models.ErrCodeBadRequest, "At least one key or prefix is required"),
 		)
 	}
 
-	// Delete multiple objects
-	if err := h.s3Service.DeleteMultipleObjects(ctx, bucketName, req.Keys); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(
-			models.ErrorResponse(models.ErrCodeDeleteFailed, "Failed to delete objects: "+err.Error()),
-		)
+	// Validate and normalize folder prefixes before running an irreversible
+	// recursive delete on a public endpoint. A blank prefix would match the
+	// entire bucket, and a prefix without a trailing slash (e.g. "photos/2024")
+	// would also match sibling keys such as "photos/2024-old/...". Reject blanks
+	// with a 4XX and force a trailing slash so a prefix only ever deletes the
+	// objects inside its own folder.
+	prefixes := make([]string, 0, len(req.Prefixes))
+	for _, p := range req.Prefixes {
+		trimmed := strings.TrimSpace(p)
+		if trimmed == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(
+				models.ErrorResponse(models.ErrCodeBadRequest, "Prefix must not be blank"),
+			)
+		}
+		if !strings.HasSuffix(trimmed, "/") {
+			trimmed += "/"
+		}
+		prefixes = append(prefixes, trimmed)
+	}
+
+	deleted := 0
+
+	// Delete the individually selected objects in a single batch call.
+	if len(req.Keys) > 0 {
+		n, err := h.s3Service.DeleteMultipleObjects(ctx, bucketName, req.Keys)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(
+				models.ErrorResponse(models.ErrCodeDeleteFailed, "Failed to delete objects: "+err.Error()),
+			)
+		}
+		deleted += n
+	}
+
+	// Recursively delete every object under each selected folder prefix.
+	for _, prefix := range prefixes {
+		n, err := h.s3Service.DeleteObjectsByPrefix(ctx, bucketName, prefix)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(
+				models.ErrorResponse(models.ErrCodeDeleteFailed, "Failed to delete folder "+prefix+": "+err.Error()),
+			)
+		}
+		deleted += n
 	}
 
 	response := models.ObjectDeleteMultipleResponse{
-		Bucket:  bucketName,
-		Deleted: len(req.Keys),
-		Keys:    req.Keys,
+		Bucket:   bucketName,
+		Deleted:  deleted,
+		Keys:     req.Keys,
+		Prefixes: prefixes,
 	}
 
 	return c.JSON(models.SuccessResponse(response))

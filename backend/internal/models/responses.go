@@ -48,6 +48,10 @@ type BucketInfo struct {
 	WebsiteAccess bool                 `json:"websiteAccess"`
 	WebsiteConfig *BucketWebsiteConfig `json:"websiteConfig,omitempty"`
 	Quotas        *BucketQuotas        `json:"quotas,omitempty"`
+
+	// EffectivePermissions is the caller's prefix-scoped permissions on this
+	// bucket, computed server-side. Omitted when access control is disabled.
+	EffectivePermissions []string `json:"effective_permissions,omitempty"`
 }
 
 // BucketListResponse represents a list of buckets
@@ -146,10 +150,16 @@ type PresignedURLResponse struct {
 	Key       string `json:"key"`
 }
 
+type PreviewURLResponse struct {
+	URL       string `json:"url"`
+	ExpiresAt string `json:"expires_at"`
+}
+
 type ObjectDeleteMultipleResponse struct {
-	Bucket  string   `json:"bucket"`
-	Deleted int      `json:"deleted"`
-	Keys    []string `json:"keys"`
+	Bucket   string   `json:"bucket"`
+	Deleted  int      `json:"deleted"`
+	Keys     []string `json:"keys"`
+	Prefixes []string `json:"prefixes,omitempty"`
 }
 
 // UserListResponse represents a list of users/keys

@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.10.0](https://github.com/Noooste/garage-ui/compare/v0.9.0...v0.10.0) (2026-07-14)
+
+
+### Features
+
+* bulk actions — recursively delete folders (key prefixes) ([#68](https://github.com/Noooste/garage-ui/issues/68)) ([5d33382](https://github.com/Noooste/garage-ui/commit/5d33382e3056afd5b75b1775255e0f3033833f6c))
+* **metrics:** add public metrics endpoint configuration and update documentation ([#92](https://github.com/Noooste/garage-ui/issues/92)) ([9f73d03](https://github.com/Noooste/garage-ui/commit/9f73d032e6c1c10b7d0dafa986e32985aa3b6f66))
+* **preview:** Implement object preview functionality ([#94](https://github.com/Noooste/garage-ui/issues/94)) ([c0976a1](https://github.com/Noooste/garage-ui/commit/c0976a1e1d53839d1fe9d7158e8cadb979789722))
+
+## [0.9.0](https://github.com/Noooste/garage-ui/compare/v0.8.5...v0.9.0) (2026-07-11)
+
+
+### Features
+
+* **backend,frontend:** implement prefix and recursive substring search for bucket objects ([#89](https://github.com/Noooste/garage-ui/issues/89)) ([3098e47](https://github.com/Noooste/garage-ui/commit/3098e474f202f36b527c8636cd1d4e8c08e287d2))
+* **oidc:** add fine grained access control ([#91](https://github.com/Noooste/garage-ui/issues/91)) ([0d804fb](https://github.com/Noooste/garage-ui/commit/0d804fbd39ed656511b671d237ad14fc8c21786d))
+
 ## [0.8.5](https://github.com/Noooste/garage-ui/compare/v0.8.4...v0.8.5) (2026-07-03)
 
 

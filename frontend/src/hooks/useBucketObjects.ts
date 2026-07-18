@@ -3,7 +3,11 @@ import { objectsApi } from '@/lib/api';
 import type { S3Object, UploadTask } from '@/types';
 import { toast } from 'sonner';
 
-export function useBucketObjects(bucketName: string | null, currentPath: string = '') {
+// How long to wait after the last keystroke before actually searching. Keeps
+// typing from firing a request (and a client-side re-filter) on every key.
+const SEARCH_DEBOUNCE_MS = 750;
+
+export function useBucketObjects(bucketName: string | null, currentPath: string = '', searchQuery: string = '', deepSearch: boolean = false) {
   const [objects, setObjects] = useState<S3Object[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -13,13 +17,25 @@ export function useBucketObjects(bucketName: string | null, currentPath: string 
   const [nextContinuationToken, setNextContinuationToken] = useState<string | undefined>(undefined);
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [currentContinuationToken, setCurrentContinuationToken] = useState<string | undefined>(undefined);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const previousPathRef = useRef<string>(currentPath);
   const [uploadTasks, setUploadTasks] = useState<UploadTask[]>([]);
   const clearTasksTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Monotonic sequence guarding against stale responses: when a newer fetch or
+  // search starts, older in-flight responses are discarded instead of clobbering
+  // the current view (e.g. a slow search resolving after the query was cleared).
+  const fetchSeqRef = useRef(0);
+
+  // Prefix search (the default) narrows the Garage listing to keys starting with
+  // the query, within the current folder — server-side, paginated, and O(matches)
+  // like the AWS S3 / R2 consoles. Deep search instead uses a recursive scan
+  // (see searchObjects) and does not touch listPrefix.
+  const listPrefix = debouncedSearch && !deepSearch ? currentPath + debouncedSearch : currentPath;
 
   const fetchObjects = useCallback(async (continuationToken?: string, isRefresh = false, isNav = false) => {
     if (!bucketName) return;
 
+    const seq = ++fetchSeqRef.current;
     try {
       if (isRefresh) {
         setIsRefreshing(true);
@@ -29,30 +45,70 @@ export function useBucketObjects(bucketName: string | null, currentPath: string 
         setIsLoading(true);
       }
       setError(null);
-      const response = await objectsApi.list(bucketName, currentPath, itemsPerPage, continuationToken);
+      const response = await objectsApi.list(bucketName, listPrefix, itemsPerPage, continuationToken);
+      if (seq !== fetchSeqRef.current) return;
       setObjects(response.objects);
       setIsTruncated(response.isTruncated);
       setNextContinuationToken(response.nextContinuationToken);
       setCurrentContinuationToken(continuationToken);
     } catch (err) {
+      if (seq !== fetchSeqRef.current) return;
       setError(err as Error);
       console.error('Failed to fetch objects:', err);
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-      setIsNavigating(false);
+      if (seq === fetchSeqRef.current) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+        setIsNavigating(false);
+      }
     }
-  }, [bucketName, currentPath, itemsPerPage]);
+  }, [bucketName, listPrefix, itemsPerPage]);
+
+  const searchObjects = useCallback(async (query: string) => {
+    if (!bucketName) return;
+
+    const seq = ++fetchSeqRef.current;
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await objectsApi.search(bucketName, query, currentPath || undefined);
+      if (seq !== fetchSeqRef.current) return;
+      setObjects(response.objects);
+      setIsTruncated(response.isTruncated);
+      // Search results are not token-paginated.
+      setNextContinuationToken(undefined);
+      setCurrentContinuationToken(undefined);
+    } catch (err) {
+      if (seq !== fetchSeqRef.current) return;
+      setError(err as Error);
+      console.error('Failed to search objects:', err);
+    } finally {
+      if (seq === fetchSeqRef.current) setIsLoading(false);
+    }
+  }, [bucketName, currentPath]);
+
+  // Debounce the search query so we don't fire a recursive scan per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
   useEffect(() => {
     if (!bucketName) return;
 
+    // Deep search: recursive substring scan across the current subtree.
+    if (debouncedSearch && deepSearch) {
+      searchObjects(debouncedSearch);
+      return;
+    }
+
+    // Normal listing, or prefix-filtered listing (listPrefix carries the query).
     const isPathChange = previousPathRef.current !== currentPath && objects.length > 0;
     previousPathRef.current = currentPath;
 
     fetchObjects(undefined, false, isPathChange);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bucketName, currentPath, itemsPerPage]);
+  }, [bucketName, currentPath, itemsPerPage, debouncedSearch, deepSearch]);
 
   useEffect(() => {
     return () => {
@@ -160,14 +216,24 @@ export function useBucketObjects(bucketName: string | null, currentPath: string 
     }
   }, [bucketName, currentContinuationToken, fetchObjects]);
 
-  const deleteMultipleObjects = useCallback(async (keys: string[]) => {
-    if (!bucketName || keys.length === 0) return false;
+  // Deletes the selected object keys and recursively deletes every object under
+  // each selected folder prefix.
+  const deleteMultipleObjects = useCallback(async (keys: string[], prefixes: string[] = []) => {
+    if (!bucketName || (keys.length === 0 && prefixes.length === 0)) return false;
 
     try {
-      setObjects(prev => prev.filter(obj => !keys.includes(obj.key)));
+      const keySet = new Set(keys);
+      setObjects(prev => prev.filter(obj =>
+        !keySet.has(obj.key) && !prefixes.some(prefix => obj.key.startsWith(prefix))
+      ));
 
-      await objectsApi.deleteMultiple(bucketName, keys, currentPath || undefined);
-      toast.success(`Successfully deleted ${keys.length} file${keys.length > 1 ? 's' : ''}`);
+      await objectsApi.deleteMultiple(bucketName, keys, prefixes);
+
+      const fileLabel = keys.length > 0 ? `${keys.length} file${keys.length > 1 ? 's' : ''}` : '';
+      const folderLabel = prefixes.length > 0 ? `${prefixes.length} folder${prefixes.length > 1 ? 's' : ''}` : '';
+      const summary = [fileLabel, folderLabel].filter(Boolean).join(' and ');
+      toast.success(`Successfully deleted ${summary}`);
+
       await fetchObjects(currentContinuationToken, true);
       return true;
     } catch (error) {
@@ -175,7 +241,7 @@ export function useBucketObjects(bucketName: string | null, currentPath: string 
       await fetchObjects(currentContinuationToken, true);
       return false;
     }
-  }, [bucketName, currentPath, currentContinuationToken, fetchObjects]);
+  }, [bucketName, currentContinuationToken, fetchObjects]);
 
   const createDirectory = useCallback(async (dirName: string) => {
     if (!bucketName) return false;
@@ -194,6 +260,9 @@ export function useBucketObjects(bucketName: string | null, currentPath: string 
 
   return {
     objects,
+    // The debounced query the current results reflect — use this (not the raw
+    // input) to filter/label results so the view waits instead of twitching.
+    debouncedSearch,
     isLoading,
     isRefreshing,
     isNavigating,

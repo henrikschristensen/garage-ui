@@ -274,8 +274,8 @@ func TestS3_DeleteMultipleObjects_EmptyKeysIsNoop(t *testing.T) {
 	})
 	s3 := newS3TestService(t, h)
 
-	if err := s3.DeleteMultipleObjects(context.Background(), "whatever", nil); err != nil {
-		t.Fatalf("empty keys should return nil, got %v", err)
+	if n, err := s3.DeleteMultipleObjects(context.Background(), "whatever", nil); err != nil || n != 0 {
+		t.Fatalf("empty keys should return (0, nil), got (%d, %v)", n, err)
 	}
 	if called {
 		t.Error("S3 handler was invoked for empty-keys call")
@@ -289,9 +289,111 @@ func TestS3_DeleteMultipleObjects_ServerErrorPropagates(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := s3.DeleteMultipleObjects(ctx, "b-TestS3_DeleteMultipleObjects_ServerErrorPropagates", []string{"a", "b"})
+	_, err := s3.DeleteMultipleObjects(ctx, "b-TestS3_DeleteMultipleObjects_ServerErrorPropagates", []string{"a", "b"})
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+// s3PrefixDeleteHandler serves a ListObjectsV2 response (GET) from listBody and
+// a successful multi-object DeleteResult (POST /{bucket}?delete), recording how
+// many batch-delete requests were made.
+func s3PrefixDeleteHandler(listBody string, deletePosts *int) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			*deletePosts++
+			w.Header().Set("Content-Type", "application/xml")
+			w.WriteHeader(http.StatusOK)
+			_, _ = io.WriteString(w, `<?xml version="1.0" encoding="UTF-8"?><DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"></DeleteResult>`)
+			return
+		}
+		// Any GET is treated as a ListObjectsV2 request.
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, listBody)
+	})
+}
+
+func TestS3_DeleteObjectsByPrefix_EmptyPrefixIsError(t *testing.T) {
+	// A blank prefix must be rejected before any network call — it would
+	// otherwise match (and delete) every object in the bucket.
+	called := false
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		s3ErrorXML(w, http.StatusInternalServerError, "ShouldNotHappen", "")
+	})
+	s3 := newS3TestService(t, h)
+
+	n, err := s3.DeleteObjectsByPrefix(context.Background(), "b-TestS3_DeleteObjectsByPrefix_EmptyPrefixIsError", "")
+	if err == nil {
+		t.Fatal("empty prefix should return an error")
+	}
+	if n != 0 {
+		t.Errorf("count = %d, want 0", n)
+	}
+	if called {
+		t.Error("no S3 request should be made for an empty prefix")
+	}
+}
+
+func TestS3_DeleteObjectsByPrefix_ListsThenDeletes(t *testing.T) {
+	contents := []struct {
+		Key          string
+		Size         int64
+		LastModified string
+		ETag         string
+	}{
+		{Key: "docs/a"}, {Key: "docs/b"}, {Key: "docs/sub/c"},
+	}
+	listBody := listBucketResultXML("b", false, "", contents, nil)
+	deletePosts := 0
+	s3 := newS3TestService(t, s3PrefixDeleteHandler(listBody, &deletePosts))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	n, err := s3.DeleteObjectsByPrefix(ctx, "b-TestS3_DeleteObjectsByPrefix_ListsThenDeletes", "docs/")
+	if err != nil {
+		t.Fatalf("DeleteObjectsByPrefix: %v", err)
+	}
+	if n != 3 {
+		t.Errorf("deleted = %d, want 3 (all objects listed under the prefix)", n)
+	}
+	if deletePosts == 0 {
+		t.Error("expected a batch-delete request to be made")
+	}
+}
+
+func TestS3_DeleteObjectsByPrefix_NoObjectsReturnsZero(t *testing.T) {
+	listBody := listBucketResultXML("b", false, "", nil, nil)
+	deletePosts := 0
+	s3 := newS3TestService(t, s3PrefixDeleteHandler(listBody, &deletePosts))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	n, err := s3.DeleteObjectsByPrefix(ctx, "b-TestS3_DeleteObjectsByPrefix_NoObjectsReturnsZero", "empty/")
+	if err != nil {
+		t.Fatalf("DeleteObjectsByPrefix: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("deleted = %d, want 0", n)
+	}
+	if deletePosts != 0 {
+		t.Errorf("no batch-delete should be made when nothing matches, got %d", deletePosts)
+	}
+}
+
+func TestS3_DeleteObjectsByPrefix_ListErrorPropagates(t *testing.T) {
+	h, _ := errS3Handler(http.StatusForbidden, "AccessDenied")
+	s3 := newS3TestService(t, h)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	_, err := s3.DeleteObjectsByPrefix(ctx, "b-TestS3_DeleteObjectsByPrefix_ListErrorPropagates", "docs/")
+	if err == nil {
+		t.Fatal("expected the list error to propagate, got nil")
 	}
 }
 
@@ -565,5 +667,71 @@ func TestS3_UploadMultipleObjects_PerFileFailuresRecorded(t *testing.T) {
 		if r.Error == nil {
 			t.Errorf("result[%d] should have Error set", i)
 		}
+	}
+}
+
+func TestGetObjectRange_SendsRangeHeaderAndStreamsBody(t *testing.T) {
+	bucket := uniqueBucket2(t)
+	var gotRange string
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotRange = r.Header.Get("Range")
+		w.Header().Set("Content-Range", "bytes 2-6/10")
+		w.Header().Set("Content-Length", "5")
+		// The MinIO client parses Last-Modified from the response headers on
+		// the first Read, so the fake server must set a valid one.
+		w.Header().Set("Last-Modified", time.Now().UTC().Format(http.TimeFormat))
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write([]byte("23456"))
+	})
+	s3 := newS3TestService(t, handler)
+
+	body, err := s3.GetObjectRange(context.Background(), bucket, "file.bin", 2, 6)
+	if err != nil {
+		t.Fatalf("GetObjectRange: %v", err)
+	}
+	defer body.Close()
+	data, err := io.ReadAll(body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if string(data) != "23456" {
+		t.Errorf("body = %q, want %q", data, "23456")
+	}
+	if gotRange != "bytes=2-6" {
+		t.Errorf("Range header = %q, want %q", gotRange, "bytes=2-6")
+	}
+}
+
+func TestGetObjectRange_InvalidRangeRejectedLocally(t *testing.T) {
+	bucket := uniqueBucket2(t)
+	var called bool
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	})
+	s3 := newS3TestService(t, handler)
+
+	// end before start is a caller bug; SetRange rejects it before any request.
+	if _, err := s3.GetObjectRange(context.Background(), bucket, "file.bin", 6, 2); err == nil {
+		t.Fatal("expected error for inverted range")
+	}
+	if called {
+		t.Error("no S3 request should be sent for an invalid range")
+	}
+}
+
+func TestGetObjectRange_ClientAcquisitionFailurePropagates(t *testing.T) {
+	bucket := uniqueBucket(t)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/GetBucketInfo", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"boom"}`))
+	})
+	s3, _ := adminBackedS3(t, mux)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	if _, err := s3.GetObjectRange(ctx, bucket, "missing", 0, 4); err == nil {
+		t.Fatal("expected error, got nil")
 	}
 }

@@ -11,6 +11,7 @@ import (
 
 	"Noooste/garage-ui/internal/config"
 	"Noooste/garage-ui/internal/models"
+	logpkg "Noooste/garage-ui/pkg/logger"
 	"Noooste/garage-ui/pkg/utils"
 
 	"github.com/minio/minio-go/v7"
@@ -240,17 +241,10 @@ func (s *S3Service) ListObjects(ctx context.Context, bucketName, prefix string, 
 		return nil, fmt.Errorf("failed to list objects in bucket %s: %w", bucketName, err)
 	}
 
-	// Drop directory marker objects (zero-byte keys ending in "/"). Garage
-	// returns them in Contents, but the UI renders folders from Prefixes — a
-	// marker shown as both a folder and a file is confusing. Any marker not
-	// already covered by a CommonPrefix is promoted to Prefixes below.
 	contents := make([]minio.ObjectInfo, 0, len(result.Contents))
 	markerKeys := make([]string, 0)
 	for _, obj := range result.Contents {
 		if strings.HasSuffix(obj.Key, "/") && obj.Size == 0 {
-			// A marker whose key equals the current listing prefix is the
-			// folder itself — drop it entirely so it doesn't render as a
-			// nameless child of itself.
 			if obj.Key != prefix {
 				markerKeys = append(markerKeys, obj.Key)
 			}
@@ -328,6 +322,97 @@ func (s *S3Service) ListObjects(ctx context.Context, bucketName, prefix string, 
 		Count:                 len(objects),
 		IsTruncated:           result.IsTruncated,
 		NextContinuationToken: result.NextContinuationToken,
+	}, nil
+}
+
+const (
+	searchMaxScan    = 10000 // stop after scanning this many objects
+	searchMaxResults = 1000  // stop after collecting this many matches
+	searchPageSize   = 1000  // objects requested per ListObjectsV2 page
+)
+
+func objectMatchesSearch(key string, size int64, lowerQuery string) bool {
+	if strings.HasSuffix(key, "/") && size == 0 {
+		return false
+	}
+	return strings.Contains(strings.ToLower(key), lowerQuery)
+}
+
+// SearchObjects performs a recursive, best-effort substring search over object
+// keys under the given prefix.
+func (s *S3Service) SearchObjects(ctx context.Context, bucketName, prefix, search string) (*models.ObjectListResponse, error) {
+	client, err := s.getMinioClient(ctx, bucketName, OpRead)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get MinIO client for bucket %s: %w", bucketName, err)
+	}
+
+	core := &minio.Core{Client: client}
+	lowerQuery := strings.ToLower(search)
+
+	matches := make([]models.ObjectInfo, 0, 64)
+	scanned := 0
+	truncated := false
+	token := ""
+
+scan:
+	for {
+		result, err := core.ListObjectsV2(
+			bucketName,
+			prefix,
+			"",
+			token,
+			"",
+			searchPageSize,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to search objects in bucket %s: %w", bucketName, err)
+		}
+
+		for _, obj := range result.Contents {
+			scanned++
+			if objectMatchesSearch(obj.Key, obj.Size, lowerQuery) {
+				matches = append(matches, models.ObjectInfo{
+					Key:          obj.Key,
+					Size:         obj.Size,
+					LastModified: obj.LastModified,
+					ETag:         obj.ETag,
+					StorageClass: obj.StorageClass,
+				})
+				if len(matches) >= searchMaxResults {
+					truncated = true
+					break scan
+				}
+			}
+			if scanned >= searchMaxScan {
+				truncated = true
+				break scan
+			}
+		}
+
+		if !result.IsTruncated || result.NextContinuationToken == "" {
+			break
+		}
+		token = result.NextContinuationToken
+	}
+
+	if truncated {
+		logpkg.FromCtx(ctx).Warn().
+			Str("bucket", bucketName).
+			Str("prefix", prefix).
+			Int("scanned", scanned).
+			Int("matches", len(matches)).
+			Msg("search hit scan/result cap; results are partial")
+	}
+
+	return &models.ObjectListResponse{
+		Bucket:      bucketName,
+		Objects:     matches,
+		Prefixes:    []string{},
+		Count:       len(matches),
+		IsTruncated: truncated,
+		// Search returns all matches up to the cap in one response; there is no
+		// token-based pagination for search results.
+		NextContinuationToken: "",
 	}, nil
 }
 
@@ -439,6 +524,34 @@ func (s *S3Service) GetObject(ctx context.Context, bucketName, key string) (io.R
 	return object, objectInfo, nil
 }
 
+// GetObjectRange retrieves an inclusive byte range of an object. The caller
+// resolves the range against the object size beforehand, so this method does
+// not stat the object again.
+func (s *S3Service) GetObjectRange(ctx context.Context, bucketName, key string, start, end int64) (io.ReadCloser, error) {
+	client, err := s.getMinioClient(ctx, bucketName, OpRead)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get MinIO client for bucket %s: %w", bucketName, err)
+	}
+
+	opts := minio.GetObjectOptions{}
+	if err := opts.SetRange(start, end); err != nil {
+		return nil, fmt.Errorf("invalid range %d-%d for object %s: %w", start, end, key, err)
+	}
+
+	var object *minio.Object
+	retryConfig := utils.DefaultRetryConfig()
+	err = utils.RetryWithBackoff(ctx, retryConfig, func() error {
+		var getErr error
+		object, getErr = client.GetObject(ctx, bucketName, key, opts)
+		return getErr
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get object %s from bucket %s: %w", key, bucketName, err)
+	}
+
+	return object, nil
+}
+
 // DeleteObject deletes an object from a bucket
 func (s *S3Service) DeleteObject(ctx context.Context, bucketName, key string) error {
 	// Get bucket-specific MinIO client
@@ -519,16 +632,23 @@ func (s *S3Service) GetObjectMetadata(ctx context.Context, bucketName, key strin
 	}, nil
 }
 
-// DeleteMultipleObjects deletes multiple objects from a bucket
-func (s *S3Service) DeleteMultipleObjects(ctx context.Context, bucketName string, keys []string) error {
+// DeleteMultipleObjects deletes multiple objects from a bucket and returns the
+// number of objects that were removed (requested keys minus any that failed).
+//
+// Note: S3/MinIO batch delete is idempotent — removing a key that does not
+// exist succeeds and is not reported on the error channel, so it counts toward
+// the returned total. The count therefore reflects "keys the delete operation
+// did not fail on", which is the strongest signal obtainable without a
+// per-key existence check.
+func (s *S3Service) DeleteMultipleObjects(ctx context.Context, bucketName string, keys []string) (int, error) {
 	if len(keys) == 0 {
-		return nil
+		return 0, nil
 	}
 
 	// Get bucket-specific MinIO client
 	client, err := s.getMinioClient(ctx, bucketName, OpWrite)
 	if err != nil {
-		return fmt.Errorf("failed to get MinIO client for bucket %s: %w", bucketName, err)
+		return 0, fmt.Errorf("failed to get MinIO client for bucket %s: %w", bucketName, err)
 	}
 
 	// Create channel for objects to delete
@@ -544,17 +664,61 @@ func (s *S3Service) DeleteMultipleObjects(ctx context.Context, bucketName string
 		}
 	}()
 
-	// Call MinIO RemoveObjects API (batch delete)
+	// Call MinIO RemoveObjects API (batch delete). RemoveObjects only surfaces
+	// the objects it FAILED to delete, so we drain the whole channel (which also
+	// avoids leaking the sender goroutine) and count failures.
 	errorCh := client.RemoveObjects(ctx, bucketName, objectsCh, minio.RemoveObjectsOptions{})
 
-	// Check for errors
-	for err := range errorCh {
-		if err.Err != nil {
-			return fmt.Errorf("failed to delete object %s from bucket %s: %w", err.ObjectName, bucketName, err.Err)
+	failed := 0
+	var firstErr error
+	for rerr := range errorCh {
+		if rerr.Err != nil {
+			failed++
+			if firstErr == nil {
+				firstErr = fmt.Errorf("failed to delete object %s from bucket %s: %w", rerr.ObjectName, bucketName, rerr.Err)
+			}
 		}
 	}
 
-	return nil
+	if firstErr != nil {
+		return len(keys) - failed, firstErr
+	}
+
+	return len(keys), nil
+}
+
+// DeleteObjectsByPrefix recursively deletes every object stored under the given
+// prefix (i.e. a "folder"), including the directory marker itself. It returns
+// the number of objects that were deleted.
+func (s *S3Service) DeleteObjectsByPrefix(ctx context.Context, bucketName, prefix string) (int, error) {
+	if prefix == "" {
+		return 0, fmt.Errorf("prefix is required for recursive delete")
+	}
+
+	// Get bucket-specific MinIO client
+	client, err := s.getMinioClient(ctx, bucketName, OpWrite)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get MinIO client for bucket %s: %w", bucketName, err)
+	}
+
+	// List every object under the prefix recursively (no delimiter), so nested
+	// folders are flattened into their concrete keys.
+	keys := make([]string, 0)
+	for obj := range client.ListObjects(ctx, bucketName, minio.ListObjectsOptions{
+		Prefix:    prefix,
+		Recursive: true,
+	}) {
+		if obj.Err != nil {
+			return 0, fmt.Errorf("failed to list objects under prefix %s in bucket %s: %w", prefix, bucketName, obj.Err)
+		}
+		keys = append(keys, obj.Key)
+	}
+
+	if len(keys) == 0 {
+		return 0, nil
+	}
+
+	return s.DeleteMultipleObjects(ctx, bucketName, keys)
 }
 
 // GetPresignedURL generates a pre-signed URL for temporary access to an object

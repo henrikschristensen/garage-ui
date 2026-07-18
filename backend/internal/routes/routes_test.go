@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"Noooste/garage-ui/internal/auth"
+	"Noooste/garage-ui/internal/authz"
 	"Noooste/garage-ui/internal/config"
 	"Noooste/garage-ui/internal/handlers"
 	"Noooste/garage-ui/internal/services"
@@ -57,6 +58,12 @@ func newTestApp(t *testing.T, cfgMutator func(*config.Config)) *routeFixture {
 	admin := &mocks.AdminMock{}
 	s3 := &mocks.S3Mock{}
 
+	policy, err := authz.CompilePolicy(nil)
+	if err != nil {
+		t.Fatalf("CompilePolicy: %v", err)
+	}
+	az := authz.NewMiddleware(policy, authz.NewTeamResolver(policy, nil), authz.NewAuthorizer())
+
 	app := fiber.New()
 	SetupRoutes(
 		app,
@@ -64,11 +71,12 @@ func newTestApp(t *testing.T, cfgMutator func(*config.Config)) *routeFixture {
 		svc,
 		handlers.NewHealthHandler("test"),
 		handlers.NewBucketHandler(admin, s3),
-		handlers.NewObjectHandler(s3),
+		handlers.NewObjectHandler(s3, svc),
 		handlers.NewUserHandler(admin),
 		handlers.NewClusterHandler(admin),
 		handlers.NewMonitoringHandler(admin, s3),
-		handlers.NewCapabilitiesHandler("v2", services.CapabilitiesV2()),
+		handlers.NewCapabilitiesHandler("v2", services.CapabilitiesV2(), false),
+		az,
 	)
 
 	return &routeFixture{App: app, Admin: admin, S3: s3, Auth: svc, Cfg: cfg}
@@ -198,6 +206,7 @@ func TestRoutes_AllAPIRoutesRegistered(t *testing.T) {
 		{"GET", "/api/v1/buckets/b1/objects/folder/file.txt"},
 		{"GET", "/api/v1/buckets/b1/objects/folder/file.txt/metadata"},
 		{"GET", "/api/v1/buckets/b1/objects/folder/file.txt/presign"},
+		{"GET", "/api/v1/buckets/b1/objects/folder/file.txt/preview-url"},
 		{"DELETE", "/api/v1/buckets/b1/objects/folder/file.txt"},
 		{"HEAD", "/api/v1/buckets/b1/objects/folder/file.txt"},
 		// Users
